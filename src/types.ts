@@ -82,5 +82,5 @@ export const COMPANY_DETAILS = {
   phone: "+91 91-302-302-33",
   cleanPhone: "919130230233",
   displayPhone: "+91 91302 30233",
-  email: "Bharatenterprisesfinance@gmail.com",
+  email: "bharatenterprisesfinance@gmail.com",
 };
