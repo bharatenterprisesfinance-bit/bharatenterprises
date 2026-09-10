@@ -79,9 +79,8 @@ export const COMPANY_DETAILS = {
   sloganEnglish: "Your Trust, Our Support",
   sloganMarathi: "तुमचा विश्वास, आमची साथ",
   sloganHindi: "विश्वास आपका, साथ हमारा",
-  phone: "+91 91302 30233",
+  phone: "+91 91-302-302-33",
   cleanPhone: "919130230233",
   displayPhone: "+91 91302 30233",
-  email: "Bharatenterprisesfinance@.com",
-  website: "www.bharatenterprises.com",
+  email: "Bharatenterprisesfinance@gmail.com",
 };

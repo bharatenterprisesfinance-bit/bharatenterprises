@@ -34,6 +34,24 @@ import {
 } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 
+// ─── Google Sheets Integration (via Apps Script Web App) ────────────────────
+// After deploying your Apps Script, replace the placeholder with the Web App URL.
+// Instructions: see apps-script/Code.gs in this project.
+const GOOGLE_SHEET_SCRIPT_URL = 'YOUR_GOOGLE_SCRIPT_URL_HERE';
+
+async function submitToGoogleSheets(data: LoanFormData, language: string): Promise<void> {
+  if (!GOOGLE_SHEET_SCRIPT_URL || GOOGLE_SHEET_SCRIPT_URL === 'YOUR_GOOGLE_SCRIPT_URL_HERE') return;
+  try {
+    await fetch(GOOGLE_SHEET_SCRIPT_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' }, // text/plain avoids CORS preflight with Apps Script
+      body: JSON.stringify({ ...data, language }),
+    });
+  } catch {
+    // Silently ignore — sheet save failure must never block the user flow
+  }
+}
+
 // ─── Unique Application ID (No Backend) ──────────────────────────────────────
 function generateAppId(): string {
   const now = new Date();
@@ -441,6 +459,8 @@ Contact: ${COMPANY_DETAILS.phone}`;
       await generatePdf();
       setIsSubmitted(true);
       confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
+      // ── Save to Google Sheets (fire-and-forget, non-blocking) ──
+      submitToGoogleSheets(formData, language);
     } catch (err) {
       console.error(err);
       setStatusMsg(
