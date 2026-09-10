@@ -226,6 +226,19 @@ export const LoanForm: React.FC<LoanFormProps> = ({
     if (formErrors.guarantorMobile) setFormErrors(prev => { const u = { ...prev }; delete u.guarantorMobile; return u; });
   };
 
+  const formatAadhaar = (raw: string): string => {
+    const digits = raw.replace(/\D/g, '').slice(0, 12);
+    return digits.replace(/(\d{4})(\d{0,4})(\d{0,4})/, (_m, a, b, c) =>
+      [a, b, c].filter(Boolean).join(' ')
+    );
+  };
+
+  const handleAadhaarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const formatted = formatAadhaar(e.target.value);
+    setFormData(prev => ({ ...prev, aadhaarNumber: formatted }));
+    if (formErrors.aadhaarNumber) setFormErrors(prev => { const u = { ...prev }; delete u.aadhaarNumber; return u; });
+  };
+
   const handleSignatureChange = (sig: string, type: 'draw' | 'type') => {
     setFormData(prev => ({ ...prev, applicantSignature: sig, signatureType: type }));
     if (formErrors.applicantSignature) setFormErrors(prev => { const u = { ...prev }; delete u.applicantSignature; return u; });
@@ -903,7 +916,7 @@ Contact: ${COMPANY_DETAILS.phone}`;
                         type="text"
                         name="aadhaarNumber"
                         value={formData.aadhaarNumber}
-                        onChange={handleChange}
+                        onChange={handleAadhaarChange}
                         inputMode="numeric"
                         pattern="[0-9 ]*"
                         placeholder="XXXX XXXX XXXX"

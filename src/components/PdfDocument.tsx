@@ -143,7 +143,9 @@ export const PdfDocument: React.FC<PdfDocumentProps> = ({ formData, id = 'loan-a
                 {isMr ? 'आधार क्रमांक :' : isHi ? 'आधार संख्या :' : 'Aadhaar Number :'}
               </span>
               <span className="flex-1 font-bold text-slate-900 border-b border-dotted border-slate-400 pb-0.5 font-mono text-[11px] tracking-wider leading-none">
-                {formData.aadhaarNumber || '__________________________'}
+                {formData.aadhaarNumber
+                  ? formData.aadhaarNumber.replace(/\D/g, '').replace(/(\d{4})(\d{4})(\d{4})/, '$1 $2 $3')
+                  : '__________________________'}
               </span>
             </div>
 
@@ -320,9 +322,20 @@ export const PdfDocument: React.FC<PdfDocumentProps> = ({ formData, id = 'loan-a
 
             <div className="flex flex-row items-end min-w-0">
               <span className="font-semibold text-slate-800 shrink-0 mr-1.5 text-[11px]">
+                {isMr ? 'आधार क्रमांक :' : isHi ? 'आधार संख्या :' : 'Aadhaar Number :'}
+              </span>
+              <span className="flex-1 font-bold text-slate-900 border-b border-dotted border-slate-400 pb-0.5 font-mono text-[11px] tracking-wider leading-none">
+                {formData.guarantorAadhaar
+                  ? formData.guarantorAadhaar.replace(/\D/g, '').replace(/(\d{4})(\d{4})(\d{4})/, '$1 $2 $3')
+                  : '__________________________'}
+              </span>
+            </div>
+
+            <div className="col-span-2 flex flex-row items-start min-w-0">
+              <span className="font-semibold text-slate-800 shrink-0 mr-1.5 text-[11px] pt-0.5">
                 {isMr ? 'पत्ता :' : isHi ? 'पता :' : 'Address :'}
               </span>
-              <span className="flex-1 font-medium text-slate-900 border-b border-dotted border-slate-400 pb-0.5 text-[11px] truncate leading-none">
+              <span className="flex-1 font-medium text-slate-900 border-b border-dotted border-slate-400 pb-0.5 text-[11px] leading-snug break-words">
                 {formData.guarantorAddress || '__________________________'}
               </span>
             </div>
