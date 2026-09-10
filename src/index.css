@@ -1,0 +1,129 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Mukta:wght@400;500;600;700;800&display=swap');
+@import "tailwindcss";
+
+@layer base {
+  *, *::before, *::after {
+    box-sizing: border-box;
+  }
+
+  html {
+    scroll-behavior: smooth;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
+  html, body {
+    overflow-x: hidden;
+    width: 100%;
+    max-width: 100%;
+    position: relative;
+    /* Exact same font stack as tejasloan.com */
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-optical-sizing: auto;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    -webkit-overflow-scrolling: touch;
+    background: #ffffff;
+  }
+
+  button, a, input, select, textarea {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+  
+  h1, h2, h3, h4, h5, h6, .font-heading {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-optical-sizing: auto;
+  }
+
+  .font-devanagari {
+    font-family: 'Mukta', 'Noto Sans Devanagari', sans-serif;
+  }
+}
+
+/* ─── Animations ─────────────────────────────────────────────── */
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(24px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes slideInRight {
+  from { opacity: 0; transform: translateX(30px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(26, 86, 219, 0.3); }
+  50%       { box-shadow: 0 0 0 12px rgba(26, 86, 219, 0); }
+}
+@keyframes ticker {
+  0%   { transform: translate3d(0, 0, 0); }
+  100% { transform: translate3d(-50%, 0, 0); }
+}
+@keyframes countUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fadeInUp   { animation: fadeInUp 0.7s ease-out forwards; }
+.animate-fadeIn     { animation: fadeIn 0.5s ease-out forwards; }
+.animate-slideRight { animation: slideInRight 0.7s ease-out forwards; }
+.animate-pulse-glow { animation: pulse-glow 2s infinite; }
+.animate-ticker     { 
+  display: flex;
+  width: max-content;
+  animation: ticker 15s linear infinite; 
+  will-change: transform;
+}
+.animate-ticker:hover {
+  animation-play-state: paused;
+}
+
+.anim-delay-100 { animation-delay: 0.1s; }
+.anim-delay-200 { animation-delay: 0.2s; }
+.anim-delay-300 { animation-delay: 0.3s; }
+.anim-delay-400 { animation-delay: 0.4s; }
+.anim-delay-500 { animation-delay: 0.5s; }
+
+/* ─── Custom scrollbars ──────────────────────────────────────── */
+::-webkit-scrollbar         { width: 6px; height: 6px; }
+::-webkit-scrollbar-track   { background: #f1f5f9; }
+::-webkit-scrollbar-thumb   { background: #94a3b8; border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #64748b; }
+
+/* ─── Glass card ─────────────────────────────────────────────── */
+.glass-card {
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+/* ─── Gradient text ──────────────────────────────────────────── */
+.gradient-text {
+  background: linear-gradient(135deg, #60a5fa 0%, #a78bfa 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ─── Hero gradient ──────────────────────────────────────────── */
+.hero-gradient {
+  background: linear-gradient(135deg, #051235 0%, #0b1f4a 40%, #132f6b 100%);
+}
+
+/* ─── Print styles ───────────────────────────────────────────── */
+@media print {
+  body { background: white !important; color: black !important; padding: 0 !important; margin: 0 !important; }
+  .no-print  { display: none !important; }
+  .print-only { display: block !important; }
+  .print-page {
+    width: 210mm !important; min-height: 297mm !important;
+    margin: 0 auto !important; padding: 8mm !important;
+    border: none !important; box-shadow: none !important;
+    background: white !important; page-break-after: avoid;
+  }
+}

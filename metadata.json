@@ -1,0 +1,6 @@
+{
+  "name": "Bharat Enterprises Finance Services",
+  "description": "Official portal for Bharat Enterprises Finance Services with loan calculators, plans, and instant Loan Application PDF Generator with WhatsApp integration.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

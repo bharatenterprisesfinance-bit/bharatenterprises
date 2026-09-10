@@ -1,0 +1,17 @@
+[
+  {
+    "step_index": 78,
+    "type": "VIEW_FILE",
+    "len": 9791
+  },
+  {
+    "step_index": 101,
+    "type": "CODE_ACTION",
+    "len": 7753
+  },
+  {
+    "step_index": 209,
+    "type": "PLANNER_RESPONSE",
+    "len": 1057
+  }
+]
