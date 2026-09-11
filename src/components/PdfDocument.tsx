@@ -330,15 +330,6 @@ export const PdfDocument: React.FC<PdfDocumentProps> = ({ formData, id = 'loan-a
                   : '__________________________'}
               </span>
             </div>
-
-            <div className="col-span-2 flex flex-row items-start min-w-0">
-              <span className="font-semibold text-slate-800 shrink-0 mr-1.5 text-[11px] pt-0.5">
-                {isMr ? 'पत्ता :' : isHi ? 'पता :' : 'Address :'}
-              </span>
-              <span className="flex-1 font-medium text-slate-900 border-b border-dotted border-slate-400 pb-0.5 text-[11px] leading-snug break-words">
-                {formData.guarantorAddress || '__________________________'}
-              </span>
-            </div>
           </div>
         </div>
 

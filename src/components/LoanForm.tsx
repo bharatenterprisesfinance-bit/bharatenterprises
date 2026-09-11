@@ -33,6 +33,7 @@ import {
   Mail,
 } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
+import { formatPhoneNumber, getRawPhoneNumber, isValidMobileNumber } from '../utils/phoneUtils';
 
 // ─── Google Sheets Integration (via Apps Script Web App) ────────────────────
 // After deploying your Apps Script, replace the placeholder with the Web App URL.
@@ -147,9 +148,9 @@ export const LoanForm: React.FC<LoanFormProps> = ({
   const savedName = initialName || (() => {
     try { return sessionStorage.getItem('befs_initial_name') || ''; } catch { return ''; }
   })();
-  const savedMobile = initialMobile || (() => {
+  const savedMobile = formatPhoneNumber(initialMobile || (() => {
     try { return sessionStorage.getItem('befs_initial_mobile') || ''; } catch { return ''; }
-  })();
+  })());
   const savedPan = initialPan || (() => {
     try { return sessionStorage.getItem('befs_initial_pan') || ''; } catch { return ''; }
   })();
@@ -178,13 +179,9 @@ export const LoanForm: React.FC<LoanFormProps> = ({
     businessName: '',
     typeOfBusiness: '',
     businessAddress: '',
-    yearsInBusiness: '2',
+    yearsInBusiness: '',
     requiredLoanAmount: initialAmount ? initialAmount.toString() : '45000',
-    purposeOfLoan: isMr
-      ? 'व्यवसाय खेळते भांडवल / दुकान विस्तार'
-      : isHi
-      ? 'व्यावसायिक कार्यशील पूंजी / दुकान विस्तार'
-      : 'Business Working Capital / Shop Expansion',
+    purposeOfLoan: '',
     repaymentPlan: initialPlan || 'Daily',
     guarantorName: '',
     guarantorMobile: '',
@@ -203,7 +200,7 @@ export const LoanForm: React.FC<LoanFormProps> = ({
 
   useEffect(() => {
     if (initialName) setFormData(prev => ({ ...prev, fullName: initialName }));
-    if (initialMobile) setFormData(prev => ({ ...prev, mobileNumber: initialMobile }));
+    if (initialMobile) setFormData(prev => ({ ...prev, mobileNumber: formatPhoneNumber(initialMobile) }));
     if (initialPan) setFormData(prev => ({ ...prev, panNumber: initialPan }));
     if (initialAmount) setFormData(prev => ({ ...prev, requiredLoanAmount: initialAmount.toString() }));
     if (initialPlan) setFormData(prev => ({ ...prev, repaymentPlan: initialPlan }));
@@ -216,30 +213,14 @@ export const LoanForm: React.FC<LoanFormProps> = ({
     if (formErrors[name]) setFormErrors(prev => { const u = { ...prev }; delete u[name]; return u; });
   };
 
-  // ── Mobile number formatter: 2-3-3-2 digits separated by " – " ──────────
-  const formatMobile = (raw: string): string => {
-    // Strip everything except digits
-    const digits = raw.replace(/\D/g, '').slice(0, 10);
-    const p1 = digits.slice(0, 2);
-    const p2 = digits.slice(2, 5);
-    const p3 = digits.slice(5, 8);
-    const p4 = digits.slice(8, 10);
-    let result = p1;
-    if (p2) result += ' – ' + p2;
-    if (p3) result += ' – ' + p3;
-    if (p4) result += ' – ' + p4;
-    return result;
-  };
-
   const handleMobileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    // Reject if any non-digit chars (except our separator) were typed intentionally
-    const formatted = formatMobile(e.target.value);
+    const formatted = formatPhoneNumber(e.target.value);
     setFormData(prev => ({ ...prev, mobileNumber: formatted }));
     if (formErrors.mobileNumber) setFormErrors(prev => { const u = { ...prev }; delete u.mobileNumber; return u; });
   };
 
   const handleGuarantorMobileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const formatted = formatMobile(e.target.value);
+    const formatted = formatPhoneNumber(e.target.value);
     setFormData(prev => ({ ...prev, guarantorMobile: formatted }));
     if (formErrors.guarantorMobile) setFormErrors(prev => { const u = { ...prev }; delete u.guarantorMobile; return u; });
   };
@@ -271,9 +252,8 @@ export const LoanForm: React.FC<LoanFormProps> = ({
       if (!formData.fullName.trim()) errors.fullName = isMr ? 'पूर्ण नाव आवश्यक आहे' : isHi ? 'पूरा नाम अनिवार्य है' : 'Full name is required';
       if (!formData.fatherHusbandName.trim()) errors.fatherHusbandName = isMr ? 'वडिलांचे / पतीचे नाव आवश्यक आहे' : isHi ? 'पिता / पति का नाम अनिवार्य है' : 'Father / Husband name is required';
       if (!formData.dob) errors.dob = isMr ? 'जन्मतारीख आवश्यक आहे' : isHi ? 'जन्म तिथि अनिवार्य है' : 'Date of birth is required';
-      const rawMobile = formData.mobileNumber.replace(/\D/g, '');
-      if (!rawMobile || rawMobile.length < 10)
-        errors.mobileNumber = isMr ? 'वैध १० अंकी मोबाइल नंबर आवश्यक आहे' : isHi ? 'मान्य १० अंकों का मोबाइल नंबर अनिवार्य है' : 'Valid 10-digit mobile is required';
+      if (!isValidMobileNumber(formData.mobileNumber))
+        errors.mobileNumber = isMr ? 'वैध १० अंकी मोबाइल नंबर आवश्यक आहे (६-९ ने सुरू होणारा)' : isHi ? 'मान्य १० अंकों का मोबाइल नंबर अनिवार्य है (६-९ से शुरू होने वाला)' : 'Valid 10-digit mobile number required (starts with 6-9)';
       if (!formData.aadhaarNumber.trim() || formData.aadhaarNumber.replace(/\s+/g, '').length < 12)
         errors.aadhaarNumber = isMr ? '१२ अंकी आधार कार्ड नंबर आवश्यक आहे' : isHi ? '१२ अंकों का आधार नंबर अनिवार्य है' : 'Valid 12-digit Aadhaar number is required';
 
@@ -281,7 +261,7 @@ export const LoanForm: React.FC<LoanFormProps> = ({
       if (!formData.panNumber.trim()) {
         errors.panNumber = isMr ? 'पॅन नंबर आवश्यक आहे' : isHi ? 'पैन नंबर अनिवार्य है' : 'PAN number is required';
       } else if (formData.panNumber.length !== 10 || !panRegex.test(formData.panNumber)) {
-        errors.panNumber = isMr ? 'वैध १० अंकी पॅन कार्ड आवश्यक (उदा. ABCDE1234F)' : isHi ? 'मान्य १० अक्षरों का पैन कार्ड आवश्यक (उदा. ABCDE1234F)' : 'Valid 10-character PAN required (e.g. ABCDE1234F)';
+        errors.panNumber = isMr ? 'वैध १० अंकी पॅन कार्ड आवश्यक आहे' : isHi ? 'मान्य १० अक्षरों का पैन कार्ड अनिवार्य है' : 'Valid 10-character PAN required';
       }
       if (!formData.fullAddress.trim()) errors.fullAddress = isMr ? 'रहिवासी पत्ता आवश्यक आहे' : isHi ? 'आवासीय पता अनिवार्य है' : 'Residential address is required';
     }
@@ -302,13 +282,11 @@ export const LoanForm: React.FC<LoanFormProps> = ({
     // STEP 4: Guarantor Details (Compulsory)
     if (step === 4) {
       if (!formData.guarantorName.trim()) errors.guarantorName = isMr ? 'जामीनदाराचे पूर्ण नाव आवश्यक आहे' : isHi ? 'गारंटर का पूरा नाम अनिवार्य है' : 'Guarantor full name is required';
-      const rawGuarantorMobile = formData.guarantorMobile.replace(/\D/g, '');
-      if (!rawGuarantorMobile || rawGuarantorMobile.length < 10)
-        errors.guarantorMobile = isMr ? 'जामीनदाराचा वैध १० अंकी मोबाइल आवश्यक आहे' : isHi ? 'गारंटर का मान्य १० अंकों का मोबाइल नंबर अनिवार्य है' : 'Valid 10-digit guarantor mobile is required';
+      if (!isValidMobileNumber(formData.guarantorMobile))
+        errors.guarantorMobile = isMr ? 'जामीनदाराचा वैध १० अंकी मोबाइल आवश्यक आहे (६-९ ने सुरू होणारा)' : isHi ? 'गारंटर का मान्य १० अंकों का मोबाइल नंबर अनिवार्य है (६-९ से शुरू होने वाला)' : 'Valid 10-digit guarantor mobile is required (starts with 6-9)';
       if (!formData.guarantorAadhaar.trim() || formData.guarantorAadhaar.replace(/\s+/g, '').length < 12)
         errors.guarantorAadhaar = isMr ? 'जामीनदाराचा १२ अंकी आधार नंबर आवश्यक आहे' : isHi ? 'गारंटर का १२ अंकों का आधार नंबर अनिवार्य है' : 'Valid 12-digit guarantor Aadhaar is required';
       if (!formData.guarantorRelation.trim()) errors.guarantorRelation = isMr ? 'नातेसंबंध आवश्यक आहे' : isHi ? 'गारंटर से संबंध अनिवार्य है' : 'Relation with guarantor is required';
-      if (!formData.guarantorAddress.trim()) errors.guarantorAddress = isMr ? 'जामीनदाराचा पत्ता आवश्यक आहे' : isHi ? 'गारंटर का पता अनिवार्य है' : 'Guarantor address is required';
     }
 
     // STEP 6: Declaration & Signature
@@ -878,7 +856,7 @@ Contact: ${COMPANY_DETAILS.phone}`;
                             name="fullName"
                             value={formData.fullName}
                             onChange={handleChange}
-                            placeholder={isMr ? 'उदा. रमेश विठ्ठल पाटील' : isHi ? 'उदा. रमेश विट्ठल शर्मा' : 'E.g. Ramesh Vitthal Patil'}
+                            placeholder={isMr ? 'पूर्ण नाव प्रविष्ट करा' : isHi ? 'पूरा नाम दर्ज करें' : 'Enter full name'}
                             className={inputCls(formErrors.fullName) + ' pl-10'}
                           />
                         </div>
@@ -891,7 +869,7 @@ Contact: ${COMPANY_DETAILS.phone}`;
                         name="fatherHusbandName"
                         value={formData.fatherHusbandName}
                         onChange={handleChange}
-                        placeholder={isMr ? 'उदा. विठ्ठल पाटील' : isHi ? 'उदा. विट्ठल शर्मा' : 'E.g. Vitthal Patil'}
+                        placeholder={isMr ? 'वडिलांचे / पतीचे नाव प्रविष्ट करा' : isHi ? 'पिता / पति का नाम दर्ज करें' : 'Enter father or husband name'}
                         className={inputCls(formErrors.fatherHusbandName)}
                       />
                     </Field>
@@ -906,22 +884,22 @@ Contact: ${COMPANY_DETAILS.phone}`;
                       />
                     </Field>
 
-                    {/* Mobile Number with +91 Prefix — format: XX – XXX – XXX – XX */}
-                    <Field label={isMr ? 'मोबाइल नंबर (१० अंकी)' : isHi ? 'मोबाइल नंबर (१० अंक)' : 'Mobile Number (10-digit)'} sublabel={isMr ? 'उदा: ९१ – ९८७ – ६५४ – ३२' : isHi ? 'उदा: 91 – 987 – 654 – 32' : 'Format: 91 – 987 – 654 – 32'} required error={formErrors.mobileNumber}>
+                    {/* Mobile Number with +91 Prefix — format: XX-XXX-XXX-XX (70-580-612-64) */}
+                    <Field label={isMr ? 'मोबाइल नंबर (१० अंकी)' : isHi ? 'मोबाइल नंबर (१० अंक)' : 'Mobile Number (10-digit)'} sublabel={isMr ? '१० अंकी मोबाइल' : isHi ? '१० अंकों का मोबाइल' : '10-digit mobile'} required error={formErrors.mobileNumber}>
                       <div className="relative flex items-center">
                         <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-300 font-semibold text-sm">
                           <span>+91</span>
                           <span className="text-slate-500 mx-2">|</span>
                         </div>
                         <input
-                          type="text"
+                          type="tel"
                           name="mobileNumber"
                           value={formData.mobileNumber}
                           onChange={handleMobileChange}
                           inputMode="numeric"
                           autoComplete="tel"
-                          placeholder="91 – 987 – 654 – 32"
-                          maxLength={17}
+                          placeholder={isMr ? 'मोबाईल नंबर प्रविष्ट करा' : isHi ? 'मोबाइल नंबर दर्ज करें' : 'Enter mobile number'}
+                          maxLength={14}
                           className={inputCls(formErrors.mobileNumber) + ' pl-16 pr-10 font-mono tracking-wider'}
                         />
                         <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center pointer-events-none text-slate-400">
@@ -939,7 +917,7 @@ Contact: ${COMPANY_DETAILS.phone}`;
                         onChange={handleAadhaarChange}
                         inputMode="numeric"
                         pattern="[0-9 ]*"
-                        placeholder="XXXX XXXX XXXX"
+                        placeholder={isMr ? '१२ अंकी आधार क्रमांक प्रविष्ट करा' : isHi ? '१२ अंकों का आधार नंबर दर्ज करें' : 'Enter 12-digit Aadhaar number'}
                         maxLength={14}
                         className={inputCls(formErrors.aadhaarNumber) + ' font-mono tracking-wider'}
                       />
@@ -960,7 +938,7 @@ Contact: ${COMPANY_DETAILS.phone}`;
                             inputMode="text"
                             autoCapitalize="characters"
                             spellCheck={false}
-                            placeholder="ABCDE1234F"
+                            placeholder={isMr ? '१० अंकी पॅन क्रमांक प्रविष्ट करा' : isHi ? '१० अंकों का पैन नंबर दर्ज करें' : 'Enter 10-character PAN'}
                             maxLength={10}
                             className={inputCls(formErrors.panNumber) + ' pl-10 font-mono uppercase tracking-widest'}
                           />
@@ -975,7 +953,7 @@ Contact: ${COMPANY_DETAILS.phone}`;
                           rows={2}
                           value={formData.fullAddress}
                           onChange={handleChange}
-                          placeholder={isMr ? 'घर/खोली क्र., इमारत/रस्ता, भाग, शहर, पिनकोड' : isHi ? 'मकान/दुकान क्र., गली/इमारत, क्षेत्र, शहर, पिनकोड' : 'House/Room No, Building/Street, Area, City, Pin'}
+                          placeholder={isMr ? 'संपूर्ण निवासी पत्ता प्रविष्ट करा' : isHi ? 'पूरा आवासीय पता दर्ज करें' : 'Enter full residential address'}
                           className={inputCls(formErrors.fullAddress) + ' resize-none'}
                         />
                       </Field>
@@ -1009,7 +987,7 @@ Contact: ${COMPANY_DETAILS.phone}`;
                         name="businessName"
                         value={formData.businessName}
                         onChange={handleChange}
-                        placeholder={isMr ? 'उदा. पाटील किराणा स्टोर' : isHi ? 'उदा. शर्मा किराना स्टोर' : 'E.g. Patil Grocery Store'}
+                        placeholder={isMr ? 'व्यवसायाचे नाव प्रविष्ट करा' : isHi ? 'व्यवसाय का नाम दर्ज करें' : 'Enter business name'}
                         className={inputCls(formErrors.businessName)}
                       />
                     </Field>
@@ -1020,7 +998,7 @@ Contact: ${COMPANY_DETAILS.phone}`;
                         name="typeOfBusiness"
                         value={formData.typeOfBusiness}
                         onChange={handleChange}
-                        placeholder={isMr ? 'उदा. किराणा, टेलर, खाद्यपदार्थ स्टॉल' : isHi ? 'उदा. किराना, टेलर, खानपान स्टॉल' : 'E.g. Grocery, Tailor, Food Stall'}
+                        placeholder={isMr ? 'व्यवसायाचा प्रकार प्रविष्ट करा' : isHi ? 'व्यवसाय का प्रकार दर्ज करें' : 'Enter type of business'}
                         className={inputCls(formErrors.typeOfBusiness)}
                       />
                     </Field>
@@ -1032,7 +1010,7 @@ Contact: ${COMPANY_DETAILS.phone}`;
                           name="businessAddress"
                           value={formData.businessAddress}
                           onChange={handleChange}
-                          placeholder={isMr ? 'दुकान/कार्यालय पत्ता' : isHi ? 'दुकान / व्यावसायिक प्रतिष्ठान का पता' : 'Shop / office location address'}
+                          placeholder={isMr ? 'व्यवसायाचा पत्ता प्रविष्ट करा' : isHi ? 'व्यवसाय का पता दर्ज करें' : 'Enter business address'}
                           className={inputCls(formErrors.businessAddress)}
                         />
                       </Field>
@@ -1133,7 +1111,7 @@ Contact: ${COMPANY_DETAILS.phone}`;
                         name="purposeOfLoan"
                         value={formData.purposeOfLoan}
                         onChange={handleChange}
-                        placeholder={isMr ? 'उदा. स्टॉक खरेदी, दुकान विस्तार, नूतनीकरण' : isHi ? 'उदा. माल खरीद, दुकान विस्तार, नवीनीकरण' : 'E.g. Stock Purchase, Shop Expansion, Renovation'}
+                        placeholder={isMr ? 'कर्जाचा हेतू प्रविष्ट करा' : isHi ? 'ऋण का उद्देश्य दर्ज करें' : 'Enter purpose of loan'}
                         className={inputCls()}
                       />
                     </Field>
@@ -1241,28 +1219,31 @@ Contact: ${COMPANY_DETAILS.phone}`;
                         name="guarantorName"
                         value={formData.guarantorName}
                         onChange={handleChange}
-                        placeholder={isMr ? 'जामीनदाराचे नाव' : isHi ? 'गारंटर का नाम' : 'Full name of guarantor'}
+                        placeholder={isMr ? 'जामीनदाराचे पूर्ण नाव प्रविष्ट करा' : isHi ? 'गारंटर का पूरा नाम दर्ज करें' : 'Enter guarantor full name'}
                         className={inputCls(formErrors.guarantorName)}
                       />
                     </Field>
 
-                    <Field label={isMr ? 'जामीनदाराचा मोबाइल नंबर' : isHi ? 'गारंटर का मोबाइल नंबर' : 'Guarantor Mobile'} sublabel={isMr ? 'उदा: ९१ – ९८७ – ६५४ – ३२' : isHi ? 'उदा: 91 – 987 – 654 – 32' : 'Format: 91 – 987 – 654 – 32'} required error={formErrors.guarantorMobile}>
+                    <Field label={isMr ? 'जामीनदाराचा मोबाइल नंबर' : isHi ? 'गारंटर का मोबाइल नंबर' : 'Guarantor Mobile'} sublabel={isMr ? '१० अंकी मोबाइल' : isHi ? '१० अंकों का मोबाइल' : '10-digit mobile'} required error={formErrors.guarantorMobile}>
                       <div className="relative flex items-center">
                         <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-300 font-semibold text-sm">
                           <span>+91</span>
                           <span className="text-slate-500 mx-2">|</span>
                         </div>
                         <input
-                          type="text"
+                          type="tel"
                           name="guarantorMobile"
                           value={formData.guarantorMobile}
                           onChange={handleGuarantorMobileChange}
                           inputMode="numeric"
                           autoComplete="tel"
-                          placeholder="91 – 987 – 654 – 32"
-                          maxLength={17}
-                          className={inputCls(formErrors.guarantorMobile) + ' pl-16 pr-4 font-mono tracking-wider'}
+                          placeholder={isMr ? 'मोबाईल नंबर प्रविष्ट करा' : isHi ? 'मोबाइल नंबर दर्ज करें' : 'Enter mobile number'}
+                          maxLength={14}
+                          className={inputCls(formErrors.guarantorMobile) + ' pl-16 pr-10 font-mono tracking-wider'}
                         />
+                        <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center pointer-events-none text-slate-400">
+                          <Phone size={16} />
+                        </div>
                       </div>
                     </Field>
 
@@ -1282,31 +1263,20 @@ Contact: ${COMPANY_DETAILS.phone}`;
                           if (formErrors.guarantorAadhaar) setFormErrors(prev => { const u = { ...prev }; delete u.guarantorAadhaar; return u; });
                         }}
                         inputMode="numeric"
-                        placeholder="XXXX XXXX XXXX"
+                        placeholder={isMr ? '१२ अंकी आधार क्रमांक प्रविष्ट करा' : isHi ? '१२ अंकों का आधार नंबर दर्ज करें' : 'Enter 12-digit Aadhaar number'}
                         maxLength={14}
                         className={inputCls(formErrors.guarantorAadhaar) + ' font-mono tracking-wider'}
                       />
                     </Field>
 
-                    <Field label={isMr ? 'नातेसंबंध (उदा. भाऊ, मित्र)' : isHi ? 'संबंध (उदा. भाई, मित्र)' : 'Relation (e.g. Brother, Friend)'} required error={formErrors.guarantorRelation}>
+                    <Field label={isMr ? 'नातेसंबंध' : isHi ? 'संबंध' : 'Relation with Guarantor'} required error={formErrors.guarantorRelation}>
                       <input
                         type="text"
                         name="guarantorRelation"
                         value={formData.guarantorRelation}
                         onChange={handleChange}
-                        placeholder={isMr ? 'उदा. भाऊ, मित्र, भागीदार' : isHi ? 'उदा. भाई, मित्र, साझेदार' : 'E.g. Brother, Friend, Partner'}
+                        placeholder={isMr ? 'नातेसंबंध प्रविष्ट करा' : isHi ? 'संबंध दर्ज करें' : 'Enter relation with guarantor'}
                         className={inputCls(formErrors.guarantorRelation)}
-                      />
-                    </Field>
-
-                    <Field label={isMr ? 'जामीनदाराचा पत्ता' : isHi ? 'गारंटर का पता' : 'Guarantor Address'} required error={formErrors.guarantorAddress}>
-                      <input
-                        type="text"
-                        name="guarantorAddress"
-                        value={formData.guarantorAddress}
-                        onChange={handleChange}
-                        placeholder={isMr ? 'रहिवासी / दुकान पत्ता' : isHi ? 'आवासीय / दुकान का पता' : 'Residential / shop address'}
-                        className={inputCls(formErrors.guarantorAddress)}
                       />
                     </Field>
                   </div>

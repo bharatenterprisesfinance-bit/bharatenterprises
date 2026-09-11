@@ -195,7 +195,7 @@ export const RepayLoanModal: React.FC<RepayLoanModalProps> = ({ isOpen, onClose 
                     type="text"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder={isMr ? 'उदा. ९८७६५४३२१० किंवा अर्ज क्रमांक' : isHi ? 'उदा. ९८७६५४३२१० या आवेदन क्रमांक...' : 'e.g. 9876543210 or Application ID...'}
+                    placeholder={isMr ? 'मोबाईल नंबर किंवा अर्ज क्रमांक प्रविष्ट करा' : isHi ? 'मोबाइल नंबर या आवेदन क्रमांक दर्ज करें' : 'Enter mobile number or application ID'}
                     className="flex-1 bg-[#101f3e] border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500"
                   />
                   <button

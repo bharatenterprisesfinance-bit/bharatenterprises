@@ -13,6 +13,7 @@ import {
   FileText
 } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
+import { formatPhoneNumber, getRawPhoneNumber, isValidMobileNumber } from '../utils/phoneUtils';
 
 export const Hero: React.FC = () => {
   const { language } = useLanguage();
@@ -34,8 +35,8 @@ export const Hero: React.FC = () => {
   };
 
   const handleMobileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value.replace(/[^0-9]/g, '').slice(0, 10);
-    setMobileNumber(val);
+    const formatted = formatPhoneNumber(e.target.value);
+    setMobileNumber(formatted);
     if (errors.mobile) setErrors((prev) => ({ ...prev, mobile: undefined }));
   };
 
@@ -58,17 +59,18 @@ export const Hero: React.FC = () => {
     }
 
     // Validate Mobile
-    if (!mobileNumber.trim()) {
+    const rawMobile = getRawPhoneNumber(mobileNumber);
+    if (!rawMobile) {
       newErrors.mobile = isMr
         ? 'कृपया मोबाईल नंबर प्रविष्ट करा'
         : isHi
         ? 'कृपया मोबाइल नंबर दर्ज करें'
         : 'Please enter your mobile number';
-    } else if (mobileNumber.length !== 10 || !/^[6-9]\d{9}$/.test(mobileNumber)) {
+    } else if (!isValidMobileNumber(mobileNumber)) {
       newErrors.mobile = isMr
-        ? 'वैध १० अंकी मोबाईल नंबर प्रविष्ट करा'
+        ? 'वैध १० अंकी मोबाईल नंबर प्रविष्ट करा (६-९ ने सुरू होणारा)'
         : isHi
-        ? 'मान्य १० अंकों का मोबाइल नंबर दर्ज करें'
+        ? 'मान्य १० अंकों का मोबाइल नंबर दर्ज करें (६-९ से शुरू होने वाला)'
         : 'Valid 10-digit mobile number required (starts with 6-9)';
     }
 
@@ -315,7 +317,7 @@ export const Hero: React.FC = () => {
                         type="text"
                         value={fullName}
                         onChange={handleNameChange}
-                        placeholder={isMr ? 'उदा. रमेश विठ्ठल पाटील' : isHi ? 'उदा. रमेश विट्ठल शर्मा' : 'Enter your full name'}
+                        placeholder={isMr ? 'पूर्ण नाव प्रविष्ट करा' : isHi ? 'पूरा नाम दर्ज करें' : 'Enter your full name'}
                         className={`w-full pl-10 pr-4 py-3 bg-[#192744] border rounded-xl text-white text-sm placeholder:text-slate-500 focus:outline-none transition-all ${errors.name
                             ? 'border-red-400 focus:ring-1 focus:ring-red-400'
                             : 'border-[#263c68] focus:border-blue-500 focus:ring-1 focus:ring-blue-500'
@@ -331,10 +333,15 @@ export const Hero: React.FC = () => {
 
                   {/* Mobile Number Field */}
                   <div className="space-y-1.5">
-                    <label className="block text-xs font-semibold text-slate-200">
-                      {isMr ? 'मोबाईल नंबर' : isHi ? 'मोबाइल नंबर' : 'Mobile Number'}{' '}
-                      <span className="text-red-500">*</span>
-                    </label>
+                    <div className="flex items-baseline justify-between">
+                      <label className="block text-xs font-semibold text-slate-200">
+                        {isMr ? 'मोबाईल नंबर' : isHi ? 'मोबाइल नंबर' : 'Mobile Number'}{' '}
+                        <span className="text-red-500">*</span>
+                      </label>
+                      <span className="text-[11px] text-slate-400 font-mono">
+                        {isMr ? '१० अंकी मोबाइल' : isHi ? '१० अंकों का मोबाइल' : '10-digit mobile'}
+                      </span>
+                    </div>
                     <div className="relative flex items-center">
                       <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-300 font-semibold text-sm">
                         <span>+91</span>
@@ -344,9 +351,11 @@ export const Hero: React.FC = () => {
                         type="tel"
                         value={mobileNumber}
                         onChange={handleMobileChange}
-                        placeholder={isMr ? 'मोबाईल नंबर टाका' : isHi ? 'मोबाइल नंबर दर्ज करें' : 'Enter your mobile number'}
-                        maxLength={10}
-                        className={`w-full pl-16 pr-10 py-3 bg-[#192744] border rounded-xl text-white font-medium text-sm placeholder:text-slate-500 focus:outline-none transition-all ${errors.mobile
+                        inputMode="numeric"
+                        autoComplete="tel"
+                        placeholder={isMr ? 'मोबाईल नंबर प्रविष्ट करा' : isHi ? 'मोबाइल नंबर दर्ज करें' : 'Enter mobile number'}
+                        maxLength={14}
+                        className={`w-full pl-16 pr-10 py-3 bg-[#192744] border rounded-xl text-white font-mono tracking-wider text-sm placeholder:text-slate-500 focus:outline-none transition-all ${errors.mobile
                             ? 'border-red-400 focus:ring-1 focus:ring-red-400'
                             : 'border-[#263c68] focus:border-blue-500 focus:ring-1 focus:ring-blue-500'
                           }`}

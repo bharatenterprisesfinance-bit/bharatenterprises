@@ -24,7 +24,7 @@ export interface LoanFormData {
   guarantorName: string;
   guarantorMobile: string;
   guarantorAadhaar: string;
-  guarantorAddress: string;
+  guarantorAddress?: string;
   guarantorRelation: string;
 
   // 5. Required Documents
@@ -81,6 +81,6 @@ export const COMPANY_DETAILS = {
   sloganHindi: "विश्वास आपका, साथ हमारा",
   phone: "+91 91-302-302-33",
   cleanPhone: "919130230233",
-  displayPhone: "+91 91302 30233",
+  displayPhone: "+91 91-302-302-33",
   email: "bharatenterprisesfinance@gmail.com",
 };

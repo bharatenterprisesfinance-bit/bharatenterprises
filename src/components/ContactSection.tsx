@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { useLanguage } from '../context/LanguageContext';
+import { formatPhoneNumber, isValidMobileNumber } from '../utils/phoneUtils';
 
 export const ContactSection: React.FC = () => {
   const { language, t } = useLanguage();
@@ -25,7 +26,7 @@ export const ContactSection: React.FC = () => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!inquiry.name || !inquiry.mobile) return;
+    if (!inquiry.name || !isValidMobileNumber(inquiry.mobile)) return;
 
     // Open WhatsApp inquiry
     const text = isMr
@@ -192,25 +193,29 @@ export const ContactSection: React.FC = () => {
                         required
                         value={inquiry.name}
                         onChange={(e) => setInquiry({ ...inquiry, name: e.target.value })}
-                        placeholder={isMr ? 'उदा. रमेश पाटील' : isHi ? 'उदा. रमेश कुमार' : 'E.g. Ramesh Patil'}
+                        placeholder={isMr ? 'पूर्ण नाव प्रविष्ट करा' : isHi ? 'पूरा नाम दर्ज करें' : 'Enter your full name'}
                         className="w-full px-3.5 py-3 sm:py-2.5 rounded-lg border border-slate-200 text-base sm:text-sm focus:ring-2 focus:ring-blue-900/30 focus:border-blue-900 outline-none min-h-[44px]"
                       />
                     </div>
 
                     <div>
-                      <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
-                        {isMr ? 'मोबाईल नंबर' : isHi ? 'मोबाइल नंबर' : 'Mobile Number'} <span className="text-red-500">*</span>
-                      </label>
+                      <div className="flex items-baseline justify-between mb-1.5">
+                        <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                          {isMr ? 'मोबाईल नंबर' : isHi ? 'मोबाइल नंबर' : 'Mobile Number'} <span className="text-red-500">*</span>
+                        </label>
+                        <span className="text-[10px] text-slate-400 font-mono">
+                          {isMr ? '१० अंकी मोबाइल' : isHi ? '१० अंकों का मोबाइल' : '10-digit mobile'}
+                        </span>
+                      </div>
                       <input
                         type="tel"
                         required
-                        maxLength={10}
-                        inputMode="tel"
-                        pattern="[0-9]*"
+                        maxLength={14}
+                        inputMode="numeric"
                         autoComplete="tel"
                         value={inquiry.mobile}
-                        onChange={(e) => setInquiry({ ...inquiry, mobile: e.target.value })}
-                        placeholder={isMr ? '१० अंकी मोबाईल नंबर' : isHi ? '१० अंकों का मोबाइल नंबर' : '10-digit number'}
+                        onChange={(e) => setInquiry({ ...inquiry, mobile: formatPhoneNumber(e.target.value) })}
+                        placeholder={isMr ? 'मोबाईल नंबर प्रविष्ट करा' : isHi ? 'मोबाइल नंबर दर्ज करें' : 'Enter mobile number'}
                         className="w-full px-3.5 py-3 sm:py-2.5 rounded-lg border border-slate-200 text-base sm:text-sm focus:ring-2 focus:ring-blue-900/30 focus:border-blue-900 outline-none font-mono min-h-[44px]"
                       />
                     </div>
