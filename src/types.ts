@@ -24,7 +24,6 @@ export interface LoanFormData {
   guarantorName: string;
   guarantorMobile: string;
   guarantorAadhaar: string;
-  guarantorAddress?: string;
   guarantorRelation: string;
 
   // 5. Required Documents
@@ -32,12 +31,24 @@ export interface LoanFormData {
   docPan: boolean;
   docPhoto: boolean;
   docBusinessProof: boolean;
+  aadhaarDoc?: UploadDocFile | null;
+  panDoc?: UploadDocFile | null;
+  photoDoc?: UploadDocFile | null;
+  businessProofDoc?: UploadDocFile | null;
+  applicationPdfDoc?: UploadDocFile | null;
 
   // 6. Declaration & Signature
   declarationAccepted: boolean;
   applicantSignature: string;
   signatureType: 'draw' | 'type';
   applicationDate: string;
+}
+
+export interface UploadDocFile {
+  name: string;
+  mimeType: string;
+  base64: string;
+  size: number;
 }
 
 export interface LoanPlan {
@@ -83,4 +94,5 @@ export const COMPANY_DETAILS = {
   cleanPhone: "919130230233",
   displayPhone: "+91 91-302-302-33",
   email: "bharatenterprisesfinance@gmail.com",
+  website: "bharatenterprises.vercel.app",
 };

@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { LoanFormData, COMPANY_DETAILS, LOAN_PLANS } from '../types';
+import { LoanFormData, UploadDocFile, COMPANY_DETAILS, LOAN_PLANS } from '../types';
 import { PdfDocument } from './PdfDocument';
 import { SignaturePad } from './SignaturePad';
 import { toJpeg } from 'html-to-image';
@@ -31,47 +31,79 @@ import {
   Lock,
   Sparkles,
   Mail,
+  Upload,
+  Camera,
+  Trash2,
+  FileUp,
+  Loader2,
+  Image as ImageIcon,
+  FolderCheck,
 } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 import { formatPhoneNumber, getRawPhoneNumber, isValidMobileNumber } from '../utils/phoneUtils';
+import { processFileForUpload, formatFileSize, validateFileSize } from '../utils/fileUtils';
 
-// ─── Google Sheets Integration (via Apps Script Web App) ────────────────────
-// After deploying your Apps Script, replace the placeholder with the Web App URL.
-// Instructions: see apps-script/Code.gs in this project.
-const GOOGLE_SHEET_SCRIPT_URL = 'YOUR_GOOGLE_SCRIPT_URL_HERE';
+// ─── Google Sheets & Google Drive Integration (via Apps Script Web App) ────
+// After deploying your Apps Script, replace the placeholder with the Web App URL,
+// or set VITE_GOOGLE_SCRIPT_URL in your .env file.
+const GOOGLE_SHEET_SCRIPT_URL =
+  (import.meta as any).env?.VITE_GOOGLE_SCRIPT_URL ||
+  'https://script.google.com/macros/s/AKfycbwj8Dp828dlJ0r-ksJjYEAW6_DjLLgVisifj01bb1YOmp0j4D7uLg07nVuMtZaDxqri/exec';
 
-async function submitToGoogleSheets(data: LoanFormData, language: string): Promise<void> {
-  if (!GOOGLE_SHEET_SCRIPT_URL || GOOGLE_SHEET_SCRIPT_URL === 'YOUR_GOOGLE_SCRIPT_URL_HERE') return;
+async function submitToGoogleSheets(
+  data: LoanFormData,
+  language: string
+): Promise<{ success: boolean; folderUrl?: string }> {
+  const endpoint =
+    (import.meta as any).env?.VITE_GOOGLE_SCRIPT_URL || GOOGLE_SHEET_SCRIPT_URL;
+
+  if (!endpoint || endpoint === 'YOUR_GOOGLE_SCRIPT_URL_HERE') {
+    return { success: false };
+  }
+
   try {
-    await fetch(GOOGLE_SHEET_SCRIPT_URL, {
+    const res = await fetch(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain' }, // text/plain avoids CORS preflight with Apps Script
-      body: JSON.stringify({ ...data, language }),
+      body: JSON.stringify({
+        ...data,
+        language,
+        aadhaarDoc: data.aadhaarDoc || null,
+        panDoc: data.panDoc || null,
+        photoDoc: data.photoDoc || null,
+        businessProofDoc: data.businessProofDoc || null,
+        applicationPdfDoc: data.applicationPdfDoc || null,
+      }),
     });
-  } catch {
-    // Silently ignore — sheet save failure must never block the user flow
+
+    const json = await res.json().catch(() => null);
+    return {
+      success: true,
+      folderUrl: json?.folderUrl,
+    };
+  } catch (err) {
+    console.error('Save to Google Sheets & Drive failed:', err);
+    return { success: false };
   }
 }
 
-// ─── Unique Application ID (No Backend) ──────────────────────────────────────
-function generateAppId(): string {
+// ─── Unique Timestamp-Based Application ID ──────────────────────────────────
+// Format: BEFS-YYYYMMDD-HHMMSS (e.g. BEFS-20260914-173845)
+// Every submission gets a strictly unique ID based on the date and time.
+function generateTimestampAppId(): string {
   const now = new Date();
-  const date = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
-  const tsBase36 = Date.now().toString(36).toUpperCase().slice(-5);
-  const rnd = Math.floor(Math.random() * 0xFFFF).toString(16).toUpperCase().padStart(4, '0');
-  return `BEFS-${date}-${tsBase36}-${rnd}`;
+  const yyyy = now.getFullYear();
+  const mm = String(now.getMonth() + 1).padStart(2, '0');
+  const dd = String(now.getDate()).padStart(2, '0');
+  const hh = String(now.getHours()).padStart(2, '0');
+  const min = String(now.getMinutes()).padStart(2, '0');
+  const ss = String(now.getSeconds()).padStart(2, '0');
+  return `BEFS-${yyyy}${mm}${dd}-${hh}${min}${ss}`;
 }
 
 function getOrCreateAppId(): string {
-  try {
-    const saved = sessionStorage.getItem('befs_app_id');
-    if (saved) return saved;
-    const id = generateAppId();
-    sessionStorage.setItem('befs_app_id', id);
-    return id;
-  } catch {
-    return generateAppId();
-  }
+  // Always generate a brand new timestamp ID for each new application
+  return generateTimestampAppId();
 }
 
 // ─── Step Config (6 Distinct Steps for Application Form) ─────────────────────
@@ -167,6 +199,13 @@ export const LoanForm: React.FC<LoanFormProps> = ({
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [hasOpenedWhatsApp, setHasOpenedWhatsApp] = useState(false);
 
+  // Document upload & Google Drive states
+  const [uploadingDocKey, setUploadingDocKey] = useState<string | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [driveFolderUrl, setDriveFolderUrl] = useState<string | null>(null);
+  const [cloudSaveStatus, setCloudSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [skipUploadToWhatsApp, setSkipUploadToWhatsApp] = useState(false);
+
   const [formData, setFormData] = useState<LoanFormData>(() => ({
     applicationNo: getOrCreateAppId(),
     fullName: savedName || '',
@@ -186,17 +225,78 @@ export const LoanForm: React.FC<LoanFormProps> = ({
     guarantorName: '',
     guarantorMobile: '',
     guarantorAadhaar: '',
-    guarantorAddress: '',
     guarantorRelation: '',
-    docAadhaar: true,
-    docPan: true,
-    docPhoto: true,
-    docBusinessProof: true,
+    docAadhaar: false,
+    docPan: false,
+    docPhoto: false,
+    docBusinessProof: false,
+    aadhaarDoc: null,
+    panDoc: null,
+    photoDoc: null,
+    businessProofDoc: null,
     declarationAccepted: false,
     applicantSignature: '',
     signatureType: 'draw',
     applicationDate: new Date().toLocaleDateString('en-GB'),
   }));
+
+  const handleFileUpload = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+    docKey: 'aadhaarDoc' | 'panDoc' | 'photoDoc' | 'businessProofDoc',
+    flagKey: 'docAadhaar' | 'docPan' | 'docPhoto' | 'docBusinessProof'
+  ) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const sizeCheck = validateFileSize(file, 12);
+    if (!sizeCheck.valid) {
+      setUploadError(sizeCheck.error || 'File size too large (max 12MB)');
+      return;
+    }
+
+    setUploadingDocKey(docKey);
+    setUploadError(null);
+
+    try {
+      const processed = await processFileForUpload(file);
+      setFormData(prev => ({
+        ...prev,
+        [docKey]: processed,
+        [flagKey]: true,
+      }));
+
+      if (formErrors[docKey]) {
+        setFormErrors(prev => {
+          const u = { ...prev };
+          delete u[docKey];
+          return u;
+        });
+      }
+    } catch (err) {
+      console.error('File upload error:', err);
+      setUploadError(
+        isMr
+          ? 'कागदपत्र अपलोड करताना त्रुटी आली. कृपया पुन्हा प्रयत्न करा.'
+          : isHi
+          ? 'दस्तावेज़ अपलोड करते समय त्रुटि आई। कृपया पुनः प्रयास करें।'
+          : 'Failed to process document file. Please try again.'
+      );
+    } finally {
+      setUploadingDocKey(null);
+      e.target.value = '';
+    }
+  };
+
+  const handleRemoveDoc = (
+    docKey: 'aadhaarDoc' | 'panDoc' | 'photoDoc' | 'businessProofDoc',
+    flagKey: 'docAadhaar' | 'docPan' | 'docPhoto' | 'docBusinessProof'
+  ) => {
+    setFormData(prev => ({
+      ...prev,
+      [docKey]: null,
+      [flagKey]: false,
+    }));
+  };
 
   useEffect(() => {
     if (initialName) setFormData(prev => ({ ...prev, fullName: initialName }));
@@ -289,6 +389,26 @@ export const LoanForm: React.FC<LoanFormProps> = ({
       if (!formData.guarantorRelation.trim()) errors.guarantorRelation = isMr ? 'नातेसंबंध आवश्यक आहे' : isHi ? 'गारंटर से संबंध अनिवार्य है' : 'Relation with guarantor is required';
     }
 
+    // STEP 5: Required Documents
+    if (step === 5) {
+      if (!skipUploadToWhatsApp) {
+        if (!formData.aadhaarDoc) {
+          errors.aadhaarDoc = isMr
+            ? 'आधार कार्ड प्रत (फोटो किंवा PDF) अपलोड करा'
+            : isHi
+            ? 'आधार कार्ड प्रति (फोटो या पीडीएफ) अपलोड करें'
+            : 'Please upload Aadhaar card copy (photo or PDF)';
+        }
+        if (!formData.panDoc) {
+          errors.panDoc = isMr
+            ? 'पॅन कार्ड प्रत (फोटो किंवा PDF) अपलोड करा'
+            : isHi
+            ? 'पैन कार्ड प्रति (फोटो या पीडीएफ) अपलोड करें'
+            : 'Please upload PAN card copy (photo or PDF)';
+        }
+      }
+    }
+
     // STEP 6: Declaration & Signature
     if (step === 6) {
       if (!formData.declarationAccepted) errors.declarationAccepted = isMr ? 'कृपया घोषणा स्वीकार करा' : isHi ? 'कृपया घोषणा स्वीकार करें' : 'Please accept the declaration';
@@ -361,9 +481,10 @@ export const LoanForm: React.FC<LoanFormProps> = ({
     pdf.addImage(imgDataUrl, 'JPEG', offsetX, offsetY, finalW, finalH);
     const blob = pdf.output('blob');
     const blobUrl = URL.createObjectURL(blob);
+    const pdfDataUri = pdf.output('datauristring');
     setGeneratedPdfFileName(fileName);
     setPdfBlobUrl(blobUrl);
-    return { blob, fileName, blobUrl };
+    return { blob, fileName, blobUrl, pdfDataUri };
   };
 
   // ── Submit ───────────────────────────────────────────────────────────────
@@ -434,11 +555,33 @@ Contact: ${COMPANY_DETAILS.phone}`;
     setWhatsAppDirectUrl(waUrl);
 
     try {
-      await generatePdf();
+      const { blob, fileName, pdfDataUri } = await generatePdf();
       setIsSubmitted(true);
+      try {
+        sessionStorage.removeItem('befs_app_id');
+        sessionStorage.removeItem('befs_initial_name');
+        sessionStorage.removeItem('befs_initial_mobile');
+        sessionStorage.removeItem('befs_initial_pan');
+      } catch { }
       confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
-      // ── Save to Google Sheets (fire-and-forget, non-blocking) ──
-      submitToGoogleSheets(formData, language);
+
+      const applicationPdfDoc: UploadDocFile = {
+        name: fileName,
+        mimeType: 'application/pdf',
+        base64: pdfDataUri,
+        size: blob.size,
+      };
+
+      // ── Save to Google Sheets & Google Drive (including the Application Form PDF) ──
+      setCloudSaveStatus('saving');
+      submitToGoogleSheets({ ...formData, applicationPdfDoc }, language).then(res => {
+        if (res.success) {
+          setCloudSaveStatus('saved');
+          if (res.folderUrl) setDriveFolderUrl(res.folderUrl);
+        } else {
+          setCloudSaveStatus('error');
+        }
+      });
     } catch (err) {
       console.error(err);
       setStatusMsg(
@@ -536,6 +679,18 @@ Contact: ${COMPANY_DETAILS.phone}`;
                   <span className="text-xs font-bold text-amber-300 bg-amber-500/10 border border-amber-500/30 px-2.5 py-1 rounded-lg">
                     {isMr ? 'स्थिती: व्हॉट्सॲप सबमिशन प्रलंबित' : isHi ? 'स्थिति: व्हाट्सएप सबमिशन प्रतीक्षित' : 'Status: Pending WhatsApp Submission'}
                   </span>
+                  {cloudSaveStatus === 'saving' && (
+                    <span className="text-xs font-semibold text-blue-300 bg-blue-500/10 border border-blue-500/30 px-2.5 py-1 rounded-lg flex items-center gap-1.5">
+                      <Loader2 size={12} className="animate-spin text-blue-400" />
+                      <span>{isMr ? 'तुमचा फॉर्म सेव्ह होत आहे...' : isHi ? 'आपका फॉर्म सहेजा जा रहा है...' : 'Saving your form...'}</span>
+                    </span>
+                  )}
+                  {cloudSaveStatus === 'saved' && (
+                    <span className="text-xs font-semibold text-emerald-300 bg-emerald-500/10 border border-emerald-500/30 px-2.5 py-1 rounded-lg flex items-center gap-1.5">
+                      <FolderCheck size={13} className="text-emerald-400" />
+                      <span>{isMr ? 'तुमचा फॉर्म सुरक्षित सेव्ह झाला' : isHi ? 'आपका फॉर्म सुरक्षित सहेज लिया गया है' : 'Your form is saved'}</span>
+                    </span>
+                  )}
                 </div>
               </div>
             </div>
@@ -602,6 +757,10 @@ Contact: ${COMPANY_DETAILS.phone}`;
                 onClick={() => {
                   setIsSubmitted(false);
                   setCurrentStep(1);
+                  setFormData(prev => ({
+                    ...prev,
+                    applicationNo: generateTimestampAppId(),
+                  }));
                 }}
                 className="text-xs font-semibold text-slate-400 hover:text-white flex items-center gap-1.5 transition-colors cursor-pointer"
               >
@@ -1099,7 +1258,6 @@ Contact: ${COMPANY_DETAILS.phone}`;
                         />
                         <div className="flex justify-between text-[10px] text-slate-400 font-mono">
                           <span>₹9k</span>
-                          <span>₹90k</span>
                           <span>₹4.5L</span>
                         </div>
                       </div>
@@ -1284,85 +1442,270 @@ Contact: ${COMPANY_DETAILS.phone}`;
               )}
 
               {/* ═══════════════════════════════════════════════════════════ */}
-              {/* STEP 5: DOCUMENTS REQUIRED                                 */}
+              {/* STEP 5: DOCUMENTS UPLOAD & GOOGLE DRIVE                     */}
               {/* ═══════════════════════════════════════════════════════════ */}
               {currentStep === 5 && (
                 <div className="space-y-4">
+                  {/* Top Notice */}
                   <div className="bg-blue-950/40 border border-blue-800/40 rounded-2xl p-3.5 flex items-start gap-2.5">
                     <div className="w-5 h-5 rounded-full bg-blue-600 text-white flex items-center justify-center shrink-0 mt-0.5">
                       <FileText size={11} />
                     </div>
-                    <p className="text-xs text-blue-200 font-medium leading-relaxed font-devanagari">
-                      {isMr
-                        ? 'खालीलपैकी उपलब्ध असलेल्या कागदपत्रांवर टिक करा. पडताळणीसाठी ही कागदपत्रे आवश्यक आहेत.'
-                        : isHi
-                        ? 'निम्नलिखित में से उपलब्ध दस्तावेजों पर टिक करें। सत्यापन के लिए ये दस्तावेज आवश्यक हैं।'
-                        : 'Select the documents you have available. These are required for physical or WhatsApp verification.'}
-                    </p>
+                    <div className="text-xs text-blue-200 font-medium leading-relaxed font-devanagari space-y-1">
+                      <p>
+                        {isMr
+                          ? 'कृपया तुमची मूळ कागदपत्रे स्पष्ट फोटो किंवा PDF स्वरूपात अपलोड करा. ही कागदपत्रे थेट सुरक्षित Google Drive वर सेव्ह केली जातील.'
+                          : isHi
+                          ? 'कृपया अपने मूल दस्तावेज़ स्पष्ट फोटो या पीडीएफ प्रारूप में अपलोड करें। ये दस्तावेज़ सीधे सुरक्षित Google Drive पर सहेजे जाएंगे।'
+                          : 'Please upload clear photos or PDF of your documents. They will be saved securely to your Google Drive.'}
+                      </p>
+                    </div>
                   </div>
 
-                  <div className="space-y-2.5">
+                  {/* Upload Error banner if any */}
+                  {uploadError && (
+                    <div className="bg-red-500/10 border border-red-500/40 rounded-xl p-3 flex items-center gap-2 text-red-300 text-xs">
+                      <AlertCircle size={15} className="shrink-0" />
+                      <span>{uploadError}</span>
+                    </div>
+                  )}
+
+                  {/* Document Upload Cards */}
+                  <div className="space-y-3">
                     {[
-                      { name: 'docAadhaar', mr: 'आधार कार्ड प्रत', hi: 'आधार कार्ड की प्रति', en: 'Aadhaar Card Copy', sub: isMr ? 'दोन्ही बाजूंची स्पष्ट छायाप्रत' : isHi ? 'दोनों तरफ की स्पष्ट फोटोकॉपी' : 'Clear copy of both sides', icon: '🪪', mandatory: true },
-                      { name: 'docPan', mr: 'पॅन कार्ड प्रत', hi: 'पैन कार्ड की प्रति', en: 'PAN Card Copy', sub: isMr ? 'स्पष्ट छायाप्रत' : isHi ? 'पैन कार्ड की फोटोकॉपी' : 'Photocopy of PAN', icon: '💳', mandatory: true },
-                      { name: 'docPhoto', mr: 'पासपोर्ट फोटो', hi: 'पासपोर्ट फोटो', en: 'Passport Photo', sub: isMr ? '२ पासपोर्ट साईज फोटो' : isHi ? '२ पासपोर्ट आकार के फोटो' : '2 passport size photos', icon: '📷', mandatory: false },
-                      { name: 'docBusinessProof', mr: 'व्यवसाय प्रमाण', hi: 'व्यवसाय प्रमाण', en: 'Business Proof', sub: isMr ? 'दुकान / व्यवसाय पुरावा किंवा फोटो' : isHi ? 'दुकान / व्यवसाय का प्रमाण अथवा फोटो' : 'Shop / business board or photo', icon: '🏪', mandatory: false },
-                    ].map(doc => {
-                      const checked = formData[doc.name as keyof LoanFormData] as boolean;
-                      // Mandatory docs (Aadhaar & PAN) are always checked and cannot be unchecked
-                      const isLocked = doc.mandatory;
+                      {
+                        docKey: 'aadhaarDoc' as const,
+                        flagKey: 'docAadhaar' as const,
+                        mr: 'आधार कार्ड प्रत (दोन्ही बाजू)',
+                        hi: 'आधार कार्ड प्रति (दोनों तरफ)',
+                        en: 'Aadhaar Card Copy (Front & Back)',
+                        subMr: 'दोन्ही बाजूंची स्पष्ट फोटो प्रत किंवा PDF',
+                        subHi: 'दोनों तरफ की स्पष्ट फोटो या पीडीएफ',
+                        subEn: 'Clear copy of front & back side or PDF',
+                        icon: '🪪',
+                        mandatory: true,
+                      },
+                      {
+                        docKey: 'panDoc' as const,
+                        flagKey: 'docPan' as const,
+                        mr: 'पॅन कार्ड प्रत',
+                        hi: 'पैन कार्ड प्रति',
+                        en: 'PAN Card Copy',
+                        subMr: 'स्पष्ट फोटोकॉपी किंवा PDF',
+                        subHi: 'स्पष्ट फोटोकॉपी या पीडीएफ',
+                        subEn: 'Clear copy or PDF',
+                        icon: '💳',
+                        mandatory: true,
+                      },
+                      {
+                        docKey: 'photoDoc' as const,
+                        flagKey: 'docPhoto' as const,
+                        mr: 'अर्जदाराचा पासपोर्ट फोटो / सेल्फी',
+                        hi: 'आवेदक का पासपोर्ट फोटो / सेल्फी',
+                        en: 'Applicant Passport Photo / Selfie',
+                        subMr: 'स्पष्ट चेहरा दिसणारा फोटो',
+                        subHi: 'स्पष्ट चेहरा दिखने वाला फोटो',
+                        subEn: 'Clear photo showing face',
+                        icon: '📷',
+                        mandatory: false,
+                      },
+                      {
+                        docKey: 'businessProofDoc' as const,
+                        flagKey: 'docBusinessProof' as const,
+                        mr: 'व्यवसाय पुरावा / दुकानाचा फोटो',
+                        hi: 'व्यवसाय प्रमाण / दुकान का फोटो',
+                        en: 'Business Proof / Shop Photo',
+                        subMr: 'दुकानाचे बोर्ड, भाडेकरार, किंवा जीएसटी / उद्यम',
+                        subHi: 'दुकान का बोर्ड, रेंट एग्रीमेंट या उद्योग प्रमाण',
+                        subEn: 'Shop board, rent deed or business registration',
+                        icon: '🏪',
+                        mandatory: false,
+                      },
+                    ].map((doc) => {
+                      const file = formData[doc.docKey];
+                      const isUploadingThis = uploadingDocKey === doc.docKey;
+                      const hasError = formErrors[doc.docKey];
+
                       return (
                         <div
-                          key={doc.name}
-                          className={`flex items-start gap-3.5 p-4 rounded-2xl border transition-all ${
-                            isLocked
-                              ? 'border-blue-500 bg-blue-600/20 text-white shadow-md cursor-not-allowed'
-                              : checked
-                              ? 'border-blue-500 bg-blue-600/20 text-white shadow-md cursor-pointer'
-                              : 'border-slate-700/80 bg-[#122247] hover:border-slate-500 text-slate-300 cursor-pointer'
+                          key={doc.docKey}
+                          className={`rounded-2xl border transition-all p-4 ${
+                            file
+                              ? 'bg-[#0b241c]/80 border-emerald-500/60 shadow-md'
+                              : hasError
+                              ? 'bg-red-500/5 border-red-500/50'
+                              : 'bg-[#122247] border-slate-700/80 hover:border-slate-500'
                           }`}
-                          onClick={() => {
-                            if (!isLocked) {
-                              setFormData(prev => ({ ...prev, [doc.name]: !prev[doc.name as keyof LoanFormData] }));
-                            }
-                          }}
                         >
-                          <div className={`w-5 h-5 rounded-lg border flex items-center justify-center mt-0.5 shrink-0 transition-all ${
-                            checked || isLocked ? 'border-blue-500 bg-blue-600' : 'border-slate-600 bg-[#192744]'
-                          }`}>
-                            {(checked || isLocked) && <Check size={12} className="text-white stroke-[3]" />}
-                          </div>
-                          <div>
-                            <p className="text-sm font-bold text-white flex items-center gap-2">
-                              <span>{doc.icon}</span>
-                              <span>{isMr ? doc.mr : isHi ? doc.hi : doc.en}</span>
-                              {isLocked
-                                ? <span className="text-emerald-400 font-bold text-xs flex items-center gap-1"><Lock size={11} /> {isMr ? 'अनिवार्य' : isHi ? 'अनिवार्य' : 'Mandatory'}</span>
-                                : doc.mandatory && <span className="text-red-400 font-bold text-xs">* ({isMr ? 'अनिवार्य' : isHi ? 'अनिवार्य' : 'Required'})</span>
-                              }
-                            </p>
-                            <p className="text-[11px] text-slate-400 mt-0.5 font-devanagari">{doc.sub}</p>
-                            {isLocked && (
-                              <p className="text-[10px] text-emerald-400/80 mt-1 font-semibold">
-                                {isMr ? 'हे कागदपत्र अनिवार्य आहे, काढता येत नाही' : isHi ? 'यह दस्तावेज़ अनिवार्य है, हटाया नहीं जा सकता' : 'This document is required and cannot be removed'}
-                              </p>
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                            {/* Left: Info */}
+                            <div className="flex items-start gap-3">
+                              <div className="text-2xl mt-0.5">{doc.icon}</div>
+                              <div className="space-y-0.5">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <span className="text-sm font-bold text-white">
+                                    {isMr ? doc.mr : isHi ? doc.hi : doc.en}
+                                  </span>
+                                  {doc.mandatory ? (
+                                    <span className="text-[10px] font-bold uppercase tracking-wider bg-amber-500/20 border border-amber-500/40 text-amber-300 px-2 py-0.5 rounded-md flex items-center gap-1">
+                                      <Lock size={9} /> {isMr ? 'अनिवार्य' : isHi ? 'अनिवार्य' : 'Mandatory'}
+                                    </span>
+                                  ) : (
+                                    <span className="text-[10px] font-medium text-slate-400 bg-slate-800 px-2 py-0.5 rounded-md">
+                                      {isMr ? 'ऐच्छिक' : isHi ? 'वैकल्पिक' : 'Optional'}
+                                    </span>
+                                  )}
+                                </div>
+                                <p className="text-[11px] text-slate-400 font-devanagari">
+                                  {isMr ? doc.subMr : isHi ? doc.subHi : doc.subEn}
+                                </p>
+                              </div>
+                            </div>
+
+                            {/* Right: Uploaded state OR Action buttons */}
+                            {file ? (
+                              <div className="flex items-center gap-2 bg-[#103328] border border-emerald-500/40 rounded-xl p-2 sm:ml-auto">
+                                {file.mimeType.startsWith('image/') ? (
+                                  <img
+                                    src={file.base64}
+                                    alt={file.name}
+                                    className="w-10 h-10 rounded-lg object-cover border border-emerald-500/50 shrink-0"
+                                  />
+                                ) : (
+                                  <div className="w-10 h-10 rounded-lg bg-red-600/20 border border-red-500/40 text-red-300 flex items-center justify-center font-bold text-[10px] shrink-0">
+                                    PDF
+                                  </div>
+                                )}
+                                <div className="text-left pr-2 min-w-[100px] max-w-[150px]">
+                                  <div className="flex items-center gap-1 text-[10px] font-bold text-emerald-400">
+                                    <CheckCircle2 size={11} className="shrink-0" />
+                                    <span>{isMr ? 'जोडली' : isHi ? 'संलग्न' : 'Attached'}</span>
+                                  </div>
+                                  <p className="text-[11px] text-white font-mono truncate font-medium">
+                                    {file.name}
+                                  </p>
+                                  <p className="text-[9px] text-slate-400 font-mono">
+                                    {formatFileSize(file.size)}
+                                  </p>
+                                </div>
+
+                                <div className="flex items-center gap-1">
+                                  <label
+                                    title={isMr ? 'दुसरी फाईल निवडा' : isHi ? 'दूसरी फाइल चुनें' : 'Replace file'}
+                                    className="p-2 rounded-lg bg-[#184537] hover:bg-[#205b49] text-slate-200 cursor-pointer transition"
+                                  >
+                                    <FileUp size={14} />
+                                    <input
+                                      type="file"
+                                      accept={doc.docKey === 'photoDoc' ? 'image/*' : 'image/*,application/pdf'}
+                                      className="hidden"
+                                      onChange={(e) => handleFileUpload(e, doc.docKey, doc.flagKey)}
+                                    />
+                                  </label>
+                                  <button
+                                    type="button"
+                                    title={isMr ? 'फाईल हटवा' : isHi ? 'फाइल हटाएं' : 'Remove file'}
+                                    onClick={() => handleRemoveDoc(doc.docKey, doc.flagKey)}
+                                    className="p-2 rounded-lg bg-[#184537] hover:bg-red-950 hover:text-red-300 text-slate-400 cursor-pointer transition"
+                                  >
+                                    <Trash2 size={14} />
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-2 sm:ml-auto">
+                                {isUploadingThis ? (
+                                  <div className="px-4 py-2 rounded-xl bg-blue-900/40 border border-blue-600 text-blue-300 text-xs flex items-center gap-2">
+                                    <Loader2 size={14} className="animate-spin" />
+                                    <span>{isMr ? 'प्रक्रिया चालू...' : isHi ? 'प्रोसेसिंग...' : 'Processing...'}</span>
+                                  </div>
+                                ) : (
+                                  <>
+                                    {/* Choose File Button */}
+                                    <label className="cursor-pointer px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 active:scale-95 text-white font-bold text-xs flex items-center gap-1.5 transition shadow shadow-blue-600/30">
+                                      <Upload size={13} />
+                                      <span>{isMr ? 'फाईल निवडा' : isHi ? 'फाइल चुनें' : 'Choose File'}</span>
+                                      <input
+                                        type="file"
+                                        accept={doc.docKey === 'photoDoc' ? 'image/*' : 'image/*,application/pdf'}
+                                        className="hidden"
+                                        onChange={(e) => handleFileUpload(e, doc.docKey, doc.flagKey)}
+                                      />
+                                    </label>
+
+                                    {/* Camera Button for quick phone capture */}
+                                    <label
+                                      title={isMr ? 'थेट कॅमेऱ्याने फोटो काढा' : isHi ? 'सीधे कैमरे से फोटो लें' : 'Snap photo with camera'}
+                                      className="cursor-pointer px-3 py-2 rounded-xl bg-[#192744] hover:bg-slate-700 active:scale-95 text-slate-200 border border-slate-600 font-bold text-xs flex items-center gap-1.5 transition"
+                                    >
+                                      <Camera size={13} />
+                                      <span className="hidden xs:inline">{isMr ? 'कॅमेरा' : isHi ? 'कैमरा' : 'Camera'}</span>
+                                      <input
+                                        type="file"
+                                        accept="image/*"
+                                        capture="environment"
+                                        className="hidden"
+                                        onChange={(e) => handleFileUpload(e, doc.docKey, doc.flagKey)}
+                                      />
+                                    </label>
+                                  </>
+                                )}
+                              </div>
                             )}
                           </div>
+
+                          {/* Inline validation error message */}
+                          {hasError && (
+                            <p className="text-xs font-semibold text-red-400 mt-2 flex items-center gap-1 font-devanagari">
+                              <AlertCircle size={12} className="shrink-0" />
+                              <span>{hasError}</span>
+                            </p>
+                          )}
                         </div>
                       );
                     })}
                   </div>
 
-                  <div className="bg-emerald-950/40 border border-emerald-800/40 rounded-2xl p-4 text-emerald-300">
-                    <p className="text-xs font-bold mb-1">
-                      {isMr ? '✓ कागदपत्रे सादर करण्याची पद्धत:' : isHi ? '✓ दस्तावेज़ जमा करने की विधि:' : '✓ Document Submission Method:'}
-                    </p>
-                    <p className="text-[11px] text-slate-300 leading-relaxed font-devanagari">
+                  {/* Fallback to WhatsApp option toggle */}
+                  <div className="bg-[#122247] border border-blue-800/40 rounded-2xl p-4 flex items-start gap-3">
+                    <input
+                      type="checkbox"
+                      id="skipUploadCheckbox"
+                      checked={skipUploadToWhatsApp}
+                      onChange={(e) => {
+                        setSkipUploadToWhatsApp(e.target.checked);
+                        if (e.target.checked) {
+                          setFormErrors(prev => {
+                            const u = { ...prev };
+                            delete u.aadhaarDoc;
+                            delete u.panDoc;
+                            return u;
+                          });
+                        }
+                      }}
+                      className="mt-1 w-4 h-4 rounded accent-blue-500 cursor-pointer"
+                    />
+                    <label htmlFor="skipUploadCheckbox" className="text-xs text-slate-300 font-devanagari cursor-pointer select-none leading-relaxed">
+                      <span className="font-bold text-white block">
+                        {isMr ? 'कागदपत्रे आता सोबत नाहीत? नंतर WhatsApp वर पाठवा' : isHi ? 'दस्तावेज़ अभी साथ नहीं हैं? बाद में व्हाट्सएप पर भेजें' : 'Cannot upload right now? Send later on WhatsApp'}
+                      </span>
                       {isMr
-                        ? `तुमची आवश्यक कागदपत्रे थेट WhatsApp (${COMPANY_DETAILS.phone}) वर पाठवा.`
+                        ? 'यावर टिक केल्यास तुम्ही आता कागदपत्रे अपलोड न करताही पुढील स्वाक्षरी पायरी पूर्ण करू शकता.'
                         : isHi
-                        ? `अपने आवश्यक दस्तावेज़ सीधे व्हाट्सएप (${COMPANY_DETAILS.phone}) पर भेजें।`
-                        : `Submit your required documents directly via WhatsApp (${COMPANY_DETAILS.phone}).`}
+                        ? 'इस पर टिक करने से आप अभी दस्तावेज़ अपलोड किए बिना भी अगला हस्ताक्षर चरण पूरा कर सकते हैं।'
+                        : 'Checking this allows you to proceed to the signature step and provide physical/WhatsApp documents later.'}
+                    </label>
+                  </div>
+
+                  {/* Info notice about Google Drive */}
+                  <div className="bg-emerald-950/30 border border-emerald-800/30 rounded-2xl p-3.5 flex items-start gap-2.5 text-emerald-300 text-xs">
+                    <FolderCheck size={16} className="text-emerald-400 shrink-0 mt-0.5" />
+                    <p className="font-devanagari leading-relaxed text-slate-300 text-[11px]">
+                      {isMr
+                        ? 'अपलोड केलेली सर्व कागदपत्रे थेट तुमच्या वैयक्तिक Google Drive मधील स्वतंत्र अर्जदार फोल्डरमध्ये सुरक्षितपणे साठवली जातील.'
+                        : isHi
+                        ? 'अपलोड किए गए सभी दस्तावेज़ सीधे आपके व्यक्तिगत Google Drive के समर्पित आवेदक फोल्डर में सुरक्षित रूप से सहेजे जाएंगे।'
+                        : 'All uploaded documents are directly stored inside your personal Google Drive dedicated applicant folder.'}
                     </p>
                   </div>
                 </div>
