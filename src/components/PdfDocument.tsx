@@ -41,7 +41,7 @@ export const PdfDocument: React.FC<PdfDocumentProps> = ({ formData, id = 'loan-a
     >
       {/* Outer Inner Border for clean document aesthetic */}
       <div
-        className="border border-[#0F3876]/40 relative flex flex-col gap-2.5"
+        className="border border-[#0F3876]/40 relative flex flex-col gap-3"
         style={{ padding: '16px', boxSizing: 'border-box' }}
       >
 
@@ -283,11 +283,11 @@ export const PdfDocument: React.FC<PdfDocumentProps> = ({ formData, id = 'loan-a
 
         {/* 4. GUARANTOR DETAILS */}
         <div className="space-y-1">
-          <div className="flex flex-row items-center gap-1.5 text-[#0F3876] font-bold text-xs border-b border-blue-200 pb-0.5">
-            <div className="w-4 h-4 rounded-full bg-[#0F3876] text-white flex items-center justify-center text-[9px] shrink-0">
+          <div className="flex flex-row items-start flex-wrap gap-1.5 text-[#0F3876] font-bold text-xs border-b border-blue-200 pb-0.5">
+            <div className="w-4 h-4 rounded-full bg-[#0F3876] text-white flex items-center justify-center text-[9px] shrink-0 mt-[1px]">
               <Users size={10} />
             </div>
-            <span className="uppercase">
+            <span className="uppercase leading-snug">
               {isMr ? '४. जामीनदार माहिती (अनिवार्य)' : isHi ? '४. गारंटर विवरण (अनिवार्य)' : '4. GUARANTOR DETAILS (COMPULSORY)'}
             </span>
           </div>
