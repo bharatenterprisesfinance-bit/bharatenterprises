@@ -39,9 +39,9 @@ var HEADERS = [
   'Language',
   // Document Links in Google Drive
   'Application Form PDF Link',
-  'Aadhaar Card File Link',
+  'Aadhaar Card Front Link',
+  'Aadhaar Card Back Link',
   'PAN Card File Link',
-  'Applicant Photo Link',
   'Business Proof Link',
   'Applicant Drive Folder Link'
 ];
@@ -155,8 +155,8 @@ function doPost(e) {
 
     var appPdfLink = 'Not Uploaded';
     var aadhaarLink = 'Not Uploaded';
+    var aadhaarBackLink = 'Not Uploaded';
     var panLink = 'Not Uploaded';
-    var photoLink = 'Not Uploaded';
     var businessProofLink = 'Not Uploaded';
     var folderUrl = '';
 
@@ -193,14 +193,14 @@ function doPost(e) {
         }
 
         // 3. Save KYC documents
-        if (data.aadhaarDoc) {
-          aadhaarLink = saveFileToApplicantFolder(applicantFolder, data.aadhaarDoc, 'Aadhaar');
+        if (data.aadhaarFrontDoc) {
+          aadhaarLink = saveFileToApplicantFolder(applicantFolder, data.aadhaarFrontDoc, 'Aadhaar_Front');
+        }
+        if (data.aadhaarBackDoc) {
+          aadhaarBackLink = saveFileToApplicantFolder(applicantFolder, data.aadhaarBackDoc, 'Aadhaar_Back');
         }
         if (data.panDoc) {
           panLink = saveFileToApplicantFolder(applicantFolder, data.panDoc, 'PAN');
-        }
-        if (data.photoDoc) {
-          photoLink = saveFileToApplicantFolder(applicantFolder, data.photoDoc, 'Photo');
         }
         if (data.businessProofDoc) {
           businessProofLink = saveFileToApplicantFolder(applicantFolder, data.businessProofDoc, 'BusinessProof');
@@ -236,8 +236,8 @@ function doPost(e) {
       data.language             || '',
       appPdfLink,
       aadhaarLink,
+      aadhaarBackLink,
       panLink,
-      photoLink,
       businessProofLink,
       folderUrl
     ];

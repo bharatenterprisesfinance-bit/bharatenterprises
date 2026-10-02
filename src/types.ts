@@ -27,13 +27,13 @@ export interface LoanFormData {
   guarantorRelation: string;
 
   // 5. Required Documents
-  docAadhaar: boolean;
+  docAadhaarFront: boolean;
+  docAadhaarBack: boolean;
   docPan: boolean;
-  docPhoto: boolean;
   docBusinessProof: boolean;
-  aadhaarDoc?: UploadDocFile | null;
+  aadhaarFrontDoc?: UploadDocFile | null;
+  aadhaarBackDoc?: UploadDocFile | null;
   panDoc?: UploadDocFile | null;
-  photoDoc?: UploadDocFile | null;
   businessProofDoc?: UploadDocFile | null;
   applicationPdfDoc?: UploadDocFile | null;
 

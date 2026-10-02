@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+﻿import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { LoanFormData, UploadDocFile, COMPANY_DETAILS, LOAN_PLANS } from '../types';
 import { PdfDocument } from './PdfDocument';
@@ -68,9 +68,9 @@ async function submitToGoogleSheets(
       body: JSON.stringify({
         ...data,
         language,
-        aadhaarDoc: data.aadhaarDoc || null,
+        aadhaarFrontDoc: data.aadhaarFrontDoc || null,
+        aadhaarBackDoc: data.aadhaarBackDoc || null,
         panDoc: data.panDoc || null,
-        photoDoc: data.photoDoc || null,
         businessProofDoc: data.businessProofDoc || null,
         applicationPdfDoc: data.applicationPdfDoc || null,
       }),
@@ -226,13 +226,13 @@ export const LoanForm: React.FC<LoanFormProps> = ({
     guarantorMobile: '',
     guarantorAadhaar: '',
     guarantorRelation: '',
-    docAadhaar: false,
+    docAadhaarFront: false,
+    docAadhaarBack: false,
     docPan: false,
-    docPhoto: false,
     docBusinessProof: false,
-    aadhaarDoc: null,
+    aadhaarFrontDoc: null,
+    aadhaarBackDoc: null,
     panDoc: null,
-    photoDoc: null,
     businessProofDoc: null,
     declarationAccepted: false,
     applicantSignature: '',
@@ -242,8 +242,8 @@ export const LoanForm: React.FC<LoanFormProps> = ({
 
   const handleFileUpload = async (
     e: React.ChangeEvent<HTMLInputElement>,
-    docKey: 'aadhaarDoc' | 'panDoc' | 'photoDoc' | 'businessProofDoc',
-    flagKey: 'docAadhaar' | 'docPan' | 'docPhoto' | 'docBusinessProof'
+    docKey: 'aadhaarFrontDoc' | 'aadhaarBackDoc' | 'panDoc' | 'businessProofDoc',
+    flagKey: 'docAadhaarFront' | 'docAadhaarBack' | 'docPan' | 'docBusinessProof'
   ) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -288,8 +288,8 @@ export const LoanForm: React.FC<LoanFormProps> = ({
   };
 
   const handleRemoveDoc = (
-    docKey: 'aadhaarDoc' | 'panDoc' | 'photoDoc' | 'businessProofDoc',
-    flagKey: 'docAadhaar' | 'docPan' | 'docPhoto' | 'docBusinessProof'
+    docKey: 'aadhaarFrontDoc' | 'aadhaarBackDoc' | 'panDoc' | 'businessProofDoc',
+    flagKey: 'docAadhaarFront' | 'docAadhaarBack' | 'docPan' | 'docBusinessProof'
   ) => {
     setFormData(prev => ({
       ...prev,
@@ -392,12 +392,19 @@ export const LoanForm: React.FC<LoanFormProps> = ({
     // STEP 5: Required Documents
     if (step === 5) {
       if (!skipUploadToWhatsApp) {
-        if (!formData.aadhaarDoc) {
-          errors.aadhaarDoc = isMr
-            ? 'आधार कार्ड प्रत (फोटो किंवा PDF) अपलोड करा'
+        if (!formData.aadhaarFrontDoc) {
+          errors.aadhaarFrontDoc = isMr
+            ? 'आधार कार्ड समोरील बाजू (फोटो किंवा PDF) अपलोड करा'
             : isHi
-            ? 'आधार कार्ड प्रति (फोटो या पीडीएफ) अपलोड करें'
-            : 'Please upload Aadhaar card copy (photo or PDF)';
+            ? 'आधार कार्ड का सामने वाला भाग (फोटो या पीडीएफ) अपलोड करें'
+            : 'Please upload Aadhaar card front side (photo or PDF)';
+        }
+        if (!formData.aadhaarBackDoc) {
+          errors.aadhaarBackDoc = isMr
+            ? 'आधार कार्ड मागील बाजू (फोटो किंवा PDF) अपलोड करा'
+            : isHi
+            ? 'आधार कार्ड का पीछे वाला भाग (फोटो या पीडीएफ) अपलोड करें'
+            : 'Please upload Aadhaar card back side (photo or PDF)';
         }
         if (!formData.panDoc) {
           errors.panDoc = isMr
@@ -405,6 +412,13 @@ export const LoanForm: React.FC<LoanFormProps> = ({
             : isHi
             ? 'पैन कार्ड प्रति (फोटो या पीडीएफ) अपलोड करें'
             : 'Please upload PAN card copy (photo or PDF)';
+        }
+        if (!formData.businessProofDoc) {
+          errors.businessProofDoc = isMr
+            ? 'व्यवसाय पुरावा (फोटो किंवा PDF) अपलोड करा'
+            : isHi
+            ? 'व्यवसाय प्रमाण (फोटो या पीडीएफ) अपलोड करें'
+            : 'Please upload business proof (photo or PDF)';
         }
       }
     }
@@ -1474,17 +1488,29 @@ Contact: ${COMPANY_DETAILS.phone}`;
                   <div className="space-y-3">
                     {[
                       {
-                        docKey: 'aadhaarDoc' as const,
-                        flagKey: 'docAadhaar' as const,
-                        mr: 'आधार कार्ड प्रत (दोन्ही बाजू)',
-                        hi: 'आधार कार्ड प्रति (दोनों तरफ)',
-                        en: 'Aadhaar Card Copy (Front & Back)',
-                        subMr: 'दोन्ही बाजूंची स्पष्ट फोटो प्रत किंवा PDF',
-                        subHi: 'दोनों तरफ की स्पष्ट फोटो या पीडीएफ',
-                        subEn: 'Clear copy of front & back side or PDF',
-                        icon: '🪪',
-                        mandatory: true,
-                      },
+                        docKey: 'aadhaarFrontDoc' as const,
+                         flagKey: 'docAadhaarFront' as const,
+                         mr: 'आधार कार्ड - समोरील बाजू',
+                         hi: 'आधार कार्ड - सामने वाला भाग',
+                         en: 'Aadhaar Card - Front Side',
+                         subMr: 'आधार कार्डची समोरील बाजू स्पष्ट फोटो किंवा PDF',
+                         subHi: 'आधार कार्ड के सामने वाले भाग की स्पष्ट फोटो या पीडीएफ',
+                         subEn: 'Clear photo or PDF of Aadhaar card front',
+                         icon: '🪪',
+                         mandatory: true,
+                       },
+                       {
+                         docKey: 'aadhaarBackDoc' as const,
+                         flagKey: 'docAadhaarBack' as const,
+                         mr: 'आधार कार्ड - मागील बाजू',
+                         hi: 'आधार कार्ड - पीछे वाला भाग',
+                         en: 'Aadhaar Card - Back Side',
+                         subMr: 'आधार कार्डची मागील बाजू स्पष्ट फोटो किंवा PDF',
+                         subHi: 'आधार कार्ड के पीछे वाले भाग की स्पष्ट फोटो या पीडीएफ',
+                         subEn: 'Clear photo or PDF of Aadhaar card back',
+                         icon: '🪪',
+                         mandatory: true,
+                       },
                       {
                         docKey: 'panDoc' as const,
                         flagKey: 'docPan' as const,
@@ -1497,19 +1523,7 @@ Contact: ${COMPANY_DETAILS.phone}`;
                         icon: '💳',
                         mandatory: true,
                       },
-                      {
-                        docKey: 'photoDoc' as const,
-                        flagKey: 'docPhoto' as const,
-                        mr: 'अर्जदाराचा पासपोर्ट फोटो / सेल्फी',
-                        hi: 'आवेदक का पासपोर्ट फोटो / सेल्फी',
-                        en: 'Applicant Passport Photo / Selfie',
-                        subMr: 'स्पष्ट चेहरा दिसणारा फोटो',
-                        subHi: 'स्पष्ट चेहरा दिखने वाला फोटो',
-                        subEn: 'Clear photo showing face',
-                        icon: '📷',
-                        mandatory: false,
-                      },
-                      {
+                                            {
                         docKey: 'businessProofDoc' as const,
                         flagKey: 'docBusinessProof' as const,
                         mr: 'व्यवसाय पुरावा / दुकानाचा फोटो',
@@ -1519,7 +1533,7 @@ Contact: ${COMPANY_DETAILS.phone}`;
                         subHi: 'दुकान का बोर्ड, रेंट एग्रीमेंट या उद्योग प्रमाण',
                         subEn: 'Shop board, rent deed or business registration',
                         icon: '🏪',
-                        mandatory: false,
+                        mandatory: true,
                       },
                     ].map((doc) => {
                       const file = formData[doc.docKey];
@@ -1597,7 +1611,7 @@ Contact: ${COMPANY_DETAILS.phone}`;
                                     <FileUp size={14} />
                                     <input
                                       type="file"
-                                      accept={doc.docKey === 'photoDoc' ? 'image/*' : 'image/*,application/pdf'}
+                                      accept="image/*,application/pdf"
                                       className="hidden"
                                       onChange={(e) => handleFileUpload(e, doc.docKey, doc.flagKey)}
                                     />
@@ -1627,7 +1641,7 @@ Contact: ${COMPANY_DETAILS.phone}`;
                                       <span>{isMr ? 'फाईल निवडा' : isHi ? 'फाइल चुनें' : 'Choose File'}</span>
                                       <input
                                         type="file"
-                                        accept={doc.docKey === 'photoDoc' ? 'image/*' : 'image/*,application/pdf'}
+                                        accept="image/*,application/pdf"
                                         className="hidden"
                                         onChange={(e) => handleFileUpload(e, doc.docKey, doc.flagKey)}
                                       />
@@ -1677,8 +1691,10 @@ Contact: ${COMPANY_DETAILS.phone}`;
                         if (e.target.checked) {
                           setFormErrors(prev => {
                             const u = { ...prev };
-                            delete u.aadhaarDoc;
-                            delete u.panDoc;
+                            delete u.aadhaarFrontDoc;
+                             delete u.aadhaarBackDoc;
+                             delete u.panDoc;
+                             delete u.businessProofDoc;
                             return u;
                           });
                         }
