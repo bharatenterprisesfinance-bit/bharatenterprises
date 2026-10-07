@@ -345,32 +345,44 @@ export const PdfDocument: React.FC<PdfDocumentProps> = ({ formData, id = 'loan-a
           </div>
 
           <div className="grid grid-cols-4 gap-2 text-xs pt-0.5 text-slate-800">
+            {/* 1. Aadhaar Card - Front */}
             <div className="flex items-center gap-1.5">
-              <span className={`w-3.5 h-3.5 border-2 border-[#0F3876] rounded flex items-center justify-center text-[10px] font-bold ${formData.docAadhaar ? 'bg-[#0F3876] text-white' : 'bg-white'}`}>
-                {formData.docAadhaar ? '✓' : ''}
+              <span className={`w-3.5 h-3.5 border-2 border-[#0F3876] rounded flex items-center justify-center text-[10px] font-bold ${Boolean(formData.docAadhaarFront || formData.aadhaarFrontDoc || formData.docAadhaar) ? 'bg-[#0F3876] text-white' : 'bg-white'}`}>
+                {Boolean(formData.docAadhaarFront || formData.aadhaarFrontDoc || formData.docAadhaar) ? '✓' : ''}
               </span>
-              <span className="text-[10px] leading-tight">{isMr ? 'आधार कार्ड' : isHi ? 'आधार कार्ड' : 'Aadhaar Card'}</span>
+              <span className="text-[10px] leading-tight font-medium">
+                {isMr ? 'आधार कार्ड (समोरील)' : isHi ? 'आधार कार्ड (सामने)' : 'Aadhaar (Front)'}
+              </span>
             </div>
 
+            {/* 2. Aadhaar Card - Back */}
             <div className="flex items-center gap-1.5">
-              <span className={`w-3.5 h-3.5 border-2 border-[#0F3876] rounded flex items-center justify-center text-[10px] font-bold ${formData.docPan ? 'bg-[#0F3876] text-white' : 'bg-white'}`}>
-                {formData.docPan ? '✓' : ''}
+              <span className={`w-3.5 h-3.5 border-2 border-[#0F3876] rounded flex items-center justify-center text-[10px] font-bold ${Boolean(formData.docAadhaarBack || formData.aadhaarBackDoc || formData.docAadhaar) ? 'bg-[#0F3876] text-white' : 'bg-white'}`}>
+                {Boolean(formData.docAadhaarBack || formData.aadhaarBackDoc || formData.docAadhaar) ? '✓' : ''}
               </span>
-              <span className="text-[10px] leading-tight">{isMr ? 'पॅन कार्ड' : isHi ? 'पैन कार्ड' : 'PAN Card'}</span>
+              <span className="text-[10px] leading-tight font-medium">
+                {isMr ? 'आधार कार्ड (मागील)' : isHi ? 'आधार कार्ड (पीछे)' : 'Aadhaar (Back)'}
+              </span>
             </div>
 
+            {/* 3. PAN Card */}
             <div className="flex items-center gap-1.5">
-              <span className={`w-3.5 h-3.5 border-2 border-[#0F3876] rounded flex items-center justify-center text-[10px] font-bold ${formData.docPhoto ? 'bg-[#0F3876] text-white' : 'bg-white'}`}>
-                {formData.docPhoto ? '✓' : ''}
+              <span className={`w-3.5 h-3.5 border-2 border-[#0F3876] rounded flex items-center justify-center text-[10px] font-bold ${Boolean(formData.docPan || formData.panDoc) ? 'bg-[#0F3876] text-white' : 'bg-white'}`}>
+                {Boolean(formData.docPan || formData.panDoc) ? '✓' : ''}
               </span>
-              <span className="text-[10px] leading-tight">{isMr ? 'पासपोर्ट फोटो' : isHi ? 'पासपोर्ट फोटो' : 'Passport Photo'}</span>
+              <span className="text-[10px] leading-tight font-medium">
+                {isMr ? 'पॅन कार्ड' : isHi ? 'पैन कार्ड' : 'PAN Card'}
+              </span>
             </div>
 
+            {/* 4. Business Proof */}
             <div className="flex items-center gap-1.5">
-              <span className={`w-3.5 h-3.5 border-2 border-[#0F3876] rounded flex items-center justify-center text-[10px] font-bold ${formData.docBusinessProof ? 'bg-[#0F3876] text-white' : 'bg-white'}`}>
-                {formData.docBusinessProof ? '✓' : ''}
+              <span className={`w-3.5 h-3.5 border-2 border-[#0F3876] rounded flex items-center justify-center text-[10px] font-bold ${Boolean(formData.docBusinessProof || formData.businessProofDoc) ? 'bg-[#0F3876] text-white' : 'bg-white'}`}>
+                {Boolean(formData.docBusinessProof || formData.businessProofDoc) ? '✓' : ''}
               </span>
-              <span className="text-[10px] leading-tight">{isMr ? 'व्यवसाय पुरावा' : isHi ? 'व्यवसाय प्रमाण' : 'Business Proof'}</span>
+              <span className="text-[10px] leading-tight font-medium">
+                {isMr ? 'व्यवसाय पुरावा' : isHi ? 'व्यवसाय प्रमाण' : 'Business Proof'}
+              </span>
             </div>
           </div>
         </div>

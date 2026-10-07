@@ -13,14 +13,14 @@ export const formatFileSize = (bytes: number): string => {
 };
 
 /**
- * Validates document file size (defaults to 12MB limit)
+ * Validates document file size (defaults to 5MB limit to prevent Google Apps Script payload overflow)
  */
-export const validateFileSize = (file: File, maxMb = 12): { valid: boolean; error?: string } => {
+export const validateFileSize = (file: File, maxMb = 5): { valid: boolean; error?: string } => {
   const maxBytes = maxMb * 1024 * 1024;
   if (file.size > maxBytes) {
     return {
       valid: false,
-      error: `File size exceeds ${maxMb}MB limit. Please upload a smaller file.`,
+      error: `File size exceeds ${maxMb}MB limit (${formatFileSize(file.size)}). Please upload a file under ${maxMb}MB.`,
     };
   }
   return { valid: true };

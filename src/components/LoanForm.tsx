@@ -1,8 +1,9 @@
-﻿import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { LoanFormData, UploadDocFile, COMPANY_DETAILS, LOAN_PLANS } from '../types';
 import { PdfDocument } from './PdfDocument';
 import { SignaturePad } from './SignaturePad';
+import { CameraCaptureModal } from './CameraCaptureModal';
 import { toJpeg } from 'html-to-image';
 import { jsPDF } from 'jspdf';
 import confetti from 'canvas-confetti';
@@ -70,6 +71,8 @@ async function submitToGoogleSheets(
         language,
         aadhaarFrontDoc: data.aadhaarFrontDoc || null,
         aadhaarBackDoc: data.aadhaarBackDoc || null,
+        // Legacy fallback for deployed scripts expecting aadhaarDoc
+        aadhaarDoc: data.aadhaarFrontDoc || data.aadhaarBackDoc || null,
         panDoc: data.panDoc || null,
         businessProofDoc: data.businessProofDoc || null,
         applicationPdfDoc: data.applicationPdfDoc || null,
@@ -77,6 +80,9 @@ async function submitToGoogleSheets(
     });
 
     const json = await res.json().catch(() => null);
+    if (json?.uploadedFiles) {
+      console.log('Google Drive uploaded document links:', json.uploadedFiles);
+    }
     return {
       success: true,
       folderUrl: json?.folderUrl,
@@ -206,6 +212,16 @@ export const LoanForm: React.FC<LoanFormProps> = ({
   const [cloudSaveStatus, setCloudSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [skipUploadToWhatsApp, setSkipUploadToWhatsApp] = useState(false);
 
+  // Camera capture modal state
+  const [cameraModalState, setCameraModalState] = useState<{
+    isOpen: boolean;
+    docKey: 'aadhaarFrontDoc' | 'aadhaarBackDoc' | 'panDoc' | 'businessProofDoc';
+    flagKey: 'docAadhaarFront' | 'docAadhaarBack' | 'docPan' | 'docBusinessProof';
+    title: { mr: string; hi: string; en: string };
+  } | null>(null);
+
+  const fileInputRefs = useRef<{ [key: string]: HTMLInputElement | null }>({});
+
   const [formData, setFormData] = useState<LoanFormData>(() => ({
     applicationNo: getOrCreateAppId(),
     fullName: savedName || '',
@@ -230,10 +246,13 @@ export const LoanForm: React.FC<LoanFormProps> = ({
     docAadhaarBack: false,
     docPan: false,
     docBusinessProof: false,
+    docAadhaar: false,
+    docPhoto: false,
     aadhaarFrontDoc: null,
     aadhaarBackDoc: null,
     panDoc: null,
     businessProofDoc: null,
+    aadhaarDoc: null,
     declarationAccepted: false,
     applicantSignature: '',
     signatureType: 'draw',
@@ -248,9 +267,9 @@ export const LoanForm: React.FC<LoanFormProps> = ({
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const sizeCheck = validateFileSize(file, 12);
+    const sizeCheck = validateFileSize(file, 5);
     if (!sizeCheck.valid) {
-      setUploadError(sizeCheck.error || 'File size too large (max 12MB)');
+      setUploadError(sizeCheck.error || 'File size too large (max 5MB)');
       return;
     }
 
@@ -259,11 +278,19 @@ export const LoanForm: React.FC<LoanFormProps> = ({
 
     try {
       const processed = await processFileForUpload(file);
-      setFormData(prev => ({
-        ...prev,
-        [docKey]: processed,
-        [flagKey]: true,
-      }));
+      setFormData(prev => {
+        const next = {
+          ...prev,
+          [docKey]: processed,
+          [flagKey]: true,
+        };
+        // Automatically keep docAadhaar synchronized
+        next.docAadhaar = Boolean(
+          (docKey === 'aadhaarFrontDoc' ? processed : prev.aadhaarFrontDoc) ||
+          (docKey === 'aadhaarBackDoc' ? processed : prev.aadhaarBackDoc)
+        );
+        return next;
+      });
 
       if (formErrors[docKey]) {
         setFormErrors(prev => {
@@ -291,11 +318,69 @@ export const LoanForm: React.FC<LoanFormProps> = ({
     docKey: 'aadhaarFrontDoc' | 'aadhaarBackDoc' | 'panDoc' | 'businessProofDoc',
     flagKey: 'docAadhaarFront' | 'docAadhaarBack' | 'docPan' | 'docBusinessProof'
   ) => {
-    setFormData(prev => ({
-      ...prev,
-      [docKey]: null,
-      [flagKey]: false,
-    }));
+    setFormData(prev => {
+      const next = {
+        ...prev,
+        [docKey]: null,
+        [flagKey]: false,
+      };
+      next.docAadhaar = Boolean(
+        (docKey === 'aadhaarFrontDoc' ? null : prev.aadhaarFrontDoc) &&
+        (docKey === 'aadhaarBackDoc' ? null : prev.aadhaarBackDoc)
+      );
+      return next;
+    });
+  };
+
+  // Open camera viewfinder modal
+  const handleOpenCamera = (
+    docKey: 'aadhaarFrontDoc' | 'aadhaarBackDoc' | 'panDoc' | 'businessProofDoc',
+    flagKey: 'docAadhaarFront' | 'docAadhaarBack' | 'docPan' | 'docBusinessProof',
+    title: { mr: string; hi: string; en: string }
+  ) => {
+    setUploadError(null);
+    setCameraModalState({
+      isOpen: true,
+      docKey,
+      flagKey,
+      title,
+    });
+  };
+
+  // Receive photo taken by camera
+  const handleCameraPhotoCaptured = (capturedFile: UploadDocFile) => {
+    if (!cameraModalState) return;
+    const { docKey, flagKey } = cameraModalState;
+
+    setFormData(prev => {
+      const next = {
+        ...prev,
+        [docKey]: capturedFile,
+        [flagKey]: true,
+      };
+      next.docAadhaar = Boolean(
+        (docKey === 'aadhaarFrontDoc' ? capturedFile : prev.aadhaarFrontDoc) ||
+        (docKey === 'aadhaarBackDoc' ? capturedFile : prev.aadhaarBackDoc)
+      );
+      return next;
+    });
+
+    if (formErrors[docKey]) {
+      setFormErrors(prev => {
+        const u = { ...prev };
+        delete u[docKey];
+        return u;
+      });
+    }
+  };
+
+  // Fallback to native file input if requested from modal
+  const handleFallbackUpload = () => {
+    if (!cameraModalState) return;
+    const inputEl = fileInputRefs.current[cameraModalState.docKey];
+    if (inputEl) {
+      inputEl.click();
+    }
   };
 
   useEffect(() => {
@@ -1604,6 +1689,7 @@ Contact: ${COMPANY_DETAILS.phone}`;
                                 </div>
 
                                 <div className="flex items-center gap-1">
+                                  {/* Replace file from storage */}
                                   <label
                                     title={isMr ? 'दुसरी फाईल निवडा' : isHi ? 'दूसरी फाइल चुनें' : 'Replace file'}
                                     className="p-2 rounded-lg bg-[#184537] hover:bg-[#205b49] text-slate-200 cursor-pointer transition"
@@ -1616,6 +1702,18 @@ Contact: ${COMPANY_DETAILS.phone}`;
                                       onChange={(e) => handleFileUpload(e, doc.docKey, doc.flagKey)}
                                     />
                                   </label>
+
+                                  {/* Retake with camera */}
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenCamera(doc.docKey, doc.flagKey, { mr: doc.mr, hi: doc.hi, en: doc.en })}
+                                    title={isMr ? 'कॅमेऱ्याने पुन्हा फोटो काढा' : isHi ? 'कैमरे से दोबारा फोटो लें' : 'Retake photo with camera'}
+                                    className="p-2 rounded-lg bg-[#184537] hover:bg-[#205b49] text-slate-200 cursor-pointer transition"
+                                  >
+                                    <Camera size={14} />
+                                  </button>
+
+                                  {/* Remove file */}
                                   <button
                                     type="button"
                                     title={isMr ? 'फाईल हटवा' : isHi ? 'फाइल हटाएं' : 'Remove file'}
@@ -1640,6 +1738,9 @@ Contact: ${COMPANY_DETAILS.phone}`;
                                       <Upload size={13} />
                                       <span>{isMr ? 'फाईल निवडा' : isHi ? 'फाइल चुनें' : 'Choose File'}</span>
                                       <input
+                                        ref={(el) => {
+                                          fileInputRefs.current[doc.docKey] = el;
+                                        }}
                                         type="file"
                                         accept="image/*,application/pdf"
                                         className="hidden"
@@ -1647,21 +1748,16 @@ Contact: ${COMPANY_DETAILS.phone}`;
                                       />
                                     </label>
 
-                                    {/* Camera Button for quick phone capture */}
-                                    <label
+                                    {/* Camera Button: opens live camera modal */}
+                                    <button
+                                      type="button"
+                                      onClick={() => handleOpenCamera(doc.docKey, doc.flagKey, { mr: doc.mr, hi: doc.hi, en: doc.en })}
                                       title={isMr ? 'थेट कॅमेऱ्याने फोटो काढा' : isHi ? 'सीधे कैमरे से फोटो लें' : 'Snap photo with camera'}
                                       className="cursor-pointer px-3 py-2 rounded-xl bg-[#192744] hover:bg-slate-700 active:scale-95 text-slate-200 border border-slate-600 font-bold text-xs flex items-center gap-1.5 transition"
                                     >
                                       <Camera size={13} />
                                       <span className="hidden xs:inline">{isMr ? 'कॅमेरा' : isHi ? 'कैमरा' : 'Camera'}</span>
-                                      <input
-                                        type="file"
-                                        accept="image/*"
-                                        capture="environment"
-                                        className="hidden"
-                                        onChange={(e) => handleFileUpload(e, doc.docKey, doc.flagKey)}
-                                      />
-                                    </label>
+                                    </button>
                                   </>
                                 )}
                               </div>
@@ -1923,6 +2019,18 @@ Contact: ${COMPANY_DETAILS.phone}`;
       <div style={{ position: 'fixed', top: 0, left: 0, width: '794px', minWidth: '794px', maxWidth: '794px', backgroundColor: '#ffffff', zIndex: -99999, opacity: 1, pointerEvents: 'none' }}>
         <PdfDocument formData={formData} id="offscreen-pdf-render-target" />
       </div>
+
+      {/* Live Camera Viewfinder & Photo Capture Modal */}
+      {cameraModalState && (
+        <CameraCaptureModal
+          isOpen={cameraModalState.isOpen}
+          onClose={() => setCameraModalState(null)}
+          documentTitle={cameraModalState.title}
+          docKey={cameraModalState.docKey}
+          onCapture={handleCameraPhotoCaptured}
+          onFallbackUpload={handleFallbackUpload}
+        />
+      )}
     </div>
   );
 };

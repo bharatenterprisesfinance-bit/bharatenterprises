@@ -122,10 +122,19 @@ function saveFileToApplicantFolder(applicantFolder, fileObj, docTypePrefix) {
     if (rawData.indexOf(',') !== -1) {
       rawData = rawData.split(',')[1];
     }
+    // Remove any newlines or spaces that can corrupt base64 decoding
+    rawData = rawData.replace(/\s+/g, '');
 
     var decodedBytes = Utilities.base64Decode(rawData);
     var mimeType = fileObj.mimeType || 'application/octet-stream';
-    var originalName = fileObj.name || (docTypePrefix + '.pdf');
+    var originalName = fileObj.name || (docTypePrefix + '.jpg');
+
+    if (mimeType.indexOf('pdf') !== -1 && originalName.toLowerCase().indexOf('.pdf') === -1) {
+      originalName += '.pdf';
+    } else if (mimeType.indexOf('jpeg') !== -1 && originalName.toLowerCase().indexOf('.jpg') === -1 && originalName.toLowerCase().indexOf('.jpeg') === -1) {
+      originalName += '.jpg';
+    }
+
     var cleanName = originalName.replace(/[^a-zA-Z0-9._-]/g, '_');
     var finalFileName = docTypePrefix + '_' + cleanName;
 
@@ -134,6 +143,7 @@ function saveFileToApplicantFolder(applicantFolder, fileObj, docTypePrefix) {
 
     return driveFile.getUrl();
   } catch (err) {
+    Logger.log('Error saving file ' + docTypePrefix + ': ' + err);
     return 'Upload Error: ' + err.toString();
   }
 }
@@ -192,21 +202,27 @@ function doPost(e) {
           appPdfLink = saveFileToApplicantFolder(applicantFolder, data.applicationPdfDoc, 'Application_Form');
         }
 
-        // 3. Save KYC documents
+        // 3. Save KYC documents (Aadhaar Front & Back, PAN, Business Proof)
         if (data.aadhaarFrontDoc) {
           aadhaarLink = saveFileToApplicantFolder(applicantFolder, data.aadhaarFrontDoc, 'Aadhaar_Front');
+        } else if (data.aadhaarDoc) {
+          aadhaarLink = saveFileToApplicantFolder(applicantFolder, data.aadhaarDoc, 'Aadhaar_Front');
         }
+
         if (data.aadhaarBackDoc) {
           aadhaarBackLink = saveFileToApplicantFolder(applicantFolder, data.aadhaarBackDoc, 'Aadhaar_Back');
         }
+
         if (data.panDoc) {
           panLink = saveFileToApplicantFolder(applicantFolder, data.panDoc, 'PAN');
         }
+
         if (data.businessProofDoc) {
           businessProofLink = saveFileToApplicantFolder(applicantFolder, data.businessProofDoc, 'BusinessProof');
         }
       } catch (driveErr) {
         folderUrl = 'Drive Error: ' + driveErr.toString();
+        Logger.log('Drive folder error: ' + driveErr);
       }
     }
 
@@ -257,11 +273,19 @@ function doPost(e) {
         result: 'success',
         appNo: data.applicationNo,
         folderUrl: folderUrl,
+        uploadedFiles: {
+          applicationPdf: appPdfLink,
+          aadhaarFront: aadhaarLink,
+          aadhaarBack: aadhaarBackLink,
+          pan: panLink,
+          businessProof: businessProofLink
+        },
         sheetResult: sheetResult
       }))
       .setMimeType(ContentService.MimeType.JSON);
 
   } catch (err) {
+    Logger.log('doPost fatal error: ' + err);
     return ContentService
       .createTextOutput(JSON.stringify({
         result: 'error',

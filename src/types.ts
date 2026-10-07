@@ -31,11 +31,14 @@ export interface LoanFormData {
   docAadhaarBack: boolean;
   docPan: boolean;
   docBusinessProof: boolean;
+  docAadhaar?: boolean;
+  docPhoto?: boolean;
   aadhaarFrontDoc?: UploadDocFile | null;
   aadhaarBackDoc?: UploadDocFile | null;
   panDoc?: UploadDocFile | null;
   businessProofDoc?: UploadDocFile | null;
   applicationPdfDoc?: UploadDocFile | null;
+  aadhaarDoc?: UploadDocFile | null;
 
   // 6. Declaration & Signature
   declarationAccepted: boolean;
